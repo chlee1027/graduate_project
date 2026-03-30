@@ -36,6 +36,7 @@ class RecommendRequest(BaseModel):
 
 
 class RecommendResponse(BaseModel):
+    recommendation_id: str
     user_id: str
     state: dict
     candidates: List[dict]
@@ -44,6 +45,7 @@ class RecommendResponse(BaseModel):
 
 
 class LogRequest(BaseModel):
+    recommendation_id: str
     user_id: str
     plan_id: str
     completed: bool
@@ -61,6 +63,7 @@ class LogResponse(BaseModel):
 
 
 class RewardRequest(BaseModel):
+    recommendation_id: str
     user_id: str
     completed: bool
     rpe: float

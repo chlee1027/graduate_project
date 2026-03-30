@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from app.routers import onboarding, recommend, log, reward
+from app.db.database import Base, engine
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Fitness AI Recommender")
 

@@ -1,31 +1,52 @@
-from fastapi import APIRouter, HTTPException
+import json
+from uuid import uuid4
+
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+
+from app.db.database import get_db
+from app.db.models import User, Recommendation
 from app.schemas.request_response import RecommendRequest, RecommendResponse
-from app.services.fake_db import users_db, plans_db
 from app.services.candidate_generator import generate_candidates
-from app.services.recommender_bandit import select_action
+from app.services.recommender_bandit_db import select_action_db
 
 router = APIRouter()
 
 
 @router.post("/", response_model=RecommendResponse)
-def recommend(request: RecommendRequest):
-    user = users_db.get(request.user_id)
+def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.user_id == request.user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found. Please complete onboarding first.")
+        raise HTTPException(
+            status_code=404,
+            detail="User not found. Please complete onboarding first."
+        )
 
     state = request.model_dump()
-    state["experience_level"] = user["experience_level"]
+    state["experience_level"] = user.experience_level
 
     candidates = generate_candidates(state)
-    result = select_action(state, candidates)
+    result = select_action_db(db, request.user_id, state, candidates)
     selected_plan = result["selected_plan"]
 
-    plans_db[selected_plan["plan_id"]] = selected_plan
+    recommendation_id = str(uuid4())
+
+    recommendation = Recommendation(
+        recommendation_id=recommendation_id,
+        user_id=request.user_id,
+        state_json=json.dumps(state, ensure_ascii=False),
+        selected_plan_json=json.dumps(selected_plan, ensure_ascii=False),
+        reason=result["reason"],
+    )
+
+    db.add(recommendation)
+    db.commit()
 
     return RecommendResponse(
+        recommendation_id=recommendation_id,
         user_id=request.user_id,
         state=state,
         candidates=candidates,
         selected_plan=selected_plan,
-        reason=result["reason"]
+        reason=result["reason"],
     )
