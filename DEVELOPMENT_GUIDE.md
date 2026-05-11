@@ -30,7 +30,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 cd frontend
 npx expo start -c
 ```
-*   Update `frontend/src/api/client.ts` with your PC's IPv4 address (Current: `192.168.45.48`).
+*   Update `frontend/src/api/client.ts` with your PC's IPv4 address (e.g., `192.168.x.x`).
 
 ## 📁 Directory Structure
 *   `/app`: FastAPI backend logic, routers, and DB models.
