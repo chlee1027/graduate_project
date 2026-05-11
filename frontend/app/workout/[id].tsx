@@ -68,7 +68,7 @@ export default function WorkoutDetail() {
                   key={num}
                   onPress={() => setRpe(num)}
                   className={`w-10 h-10 rounded-full justify-center items-center ${
-                    rpe === num ? "bg-orange-500" : "bg-gray-200"
+                    rpe === num ? "bg-blue-600" : "bg-gray-200"
                   }`}
                 >
                   <Text className={rpe === num ? "text-white" : "text-gray-600"}>{num}</Text>
@@ -85,7 +85,7 @@ export default function WorkoutDetail() {
         </View>
 
         <TouchableOpacity
-          className="bg-orange-500 p-4 rounded-xl items-center shadow-sm"
+          className="bg-blue-600 p-4 rounded-xl items-center shadow-sm"
           onPress={handleFinish}
         >
           <Text className="text-white font-bold text-lg">기록 저장하고 종료</Text>

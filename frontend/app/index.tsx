@@ -18,17 +18,17 @@ export default function Home() {
     <SafeAreaView className="flex-1 bg-white">
       <Stack.Screen options={{ title: "Fitness AI" }} />
       <ScrollView className="p-4">
-        <View className="mb-6 bg-orange-100 p-6 rounded-2xl border border-orange-200">
-          <Text className="text-2xl font-bold text-orange-800">안녕하세요! 👋</Text>
+        <View className="mb-6 bg-blue-50 p-6 rounded-2xl border border-blue-100">
+          <Text className="text-2xl font-bold text-blue-900">안녕하세요! 👋</Text>
           <Text className="text-gray-600 mt-2">오늘도 건강한 하루를 만들어볼까요?</Text>
           {userId ? (
-            <Text className="text-sm text-orange-600 mt-1">User ID: {userId}</Text>
+            <Text className="text-sm text-blue-600 mt-1">User ID: {userId}</Text>
           ) : null}
         </View>
 
         {!isOnboarded ? (
           <TouchableOpacity
-            className="bg-orange-500 p-4 rounded-xl items-center shadow-sm"
+            className="bg-blue-600 p-4 rounded-xl items-center shadow-sm"
             onPress={() => router.push("/onboarding")}
           >
             <Text className="text-white font-bold text-lg">온보딩 시작하기</Text>
@@ -36,7 +36,7 @@ export default function Home() {
         ) : (
           <View>
             <TouchableOpacity
-              className="bg-orange-500 p-4 rounded-xl items-center shadow-sm mb-4"
+              className="bg-blue-600 p-4 rounded-xl items-center shadow-sm mb-4"
               onPress={() => router.push("/recommend")}
             >
               <Text className="text-white font-bold text-lg">오늘의 운동 추천받기</Text>
