@@ -18,7 +18,7 @@ def get_user_plan_avg_reward(db: Session, user_id: str, plan_id: str) -> float:
     return stat.avg_reward if stat else 0.0
 
 
-def select_action_db(user_id: str, state: Dict, candidates: List[Dict], db: Session) -> Dict:
+def select_action_db(db: Session, user_id: str, state: Dict, candidates: List[Dict]) -> Dict:
     if not candidates:
         raise ValueError("No candidates available")
 

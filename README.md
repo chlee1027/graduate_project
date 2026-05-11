@@ -226,7 +226,6 @@ http://127.0.0.1:8000/docs
 
 ## ⚠️ 현재 한계
 
-* DB 미연동 (in-memory 사용)
 * 사용자별 모델 분리 없음
 * 장기 RL 미구현
 * 푸시 알림 미구현
@@ -235,7 +234,6 @@ http://127.0.0.1:8000/docs
 
 ## 🚧 향후 개선 방향
 
-* PostgreSQL 연동
 * 사용자별 Bandit 모델
 * Thompson Sampling / LinUCB 적용
 * Reinforcement Learning (MDP) 확장

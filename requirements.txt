@@ -1,6 +1,9 @@
 fastapi
 uvicorn
 pydantic
+pydantic-settings
 numpy
-sqlalchemy 
+sqlalchemy
 psycopg2-binary
+python-dotenv
+pandas
