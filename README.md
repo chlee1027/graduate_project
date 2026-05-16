@@ -8,239 +8,86 @@
 
 ---
 
-## 🎯 핵심 목표
+## 🎯 최근 업데이트 (2026.05.16)
 
-* 사용자 맞춤 운동 추천
-* 지속 가능한 운동 습관 형성
-* 부상 방지 및 안전한 운동 유도
-* 장기적으로 RL 기반 최적화
-
----
-
-## 🧠 시스템 구조
-
-```text
-User → Backend API → Candidate Generator → Bandit Recommender → Response
-                           ↓
-                        Logs → Reward → Bandit Update
-```
+*   **UI/UX 혁신**: 온보딩 페이지 블루 테마 적용 및 캐릭터 기반 성별 선택 UI 도입.
+*   **인터랙티브 컴포넌트**: 리액트 네이티브 Reanimated를 이용한 '리퀴드 세그먼트' 슬라이더 구현.
+*   **추천 고도화**: 홈트/헬스장 장소 전환 토글 및 유튜브 가이드 영상 연동 완료.
 
 ---
 
 ## ⚙️ 기술 스택
 
-* **Backend**: FastAPI (Python)
-* **AI/Recommender**: Contextual Bandit (ε-greedy)
-* **Data 처리**: Python (Pandas, Numpy)
-* **DB (현재)**: In-Memory (향후 PostgreSQL 예정)
-* **API 테스트**: Swagger (FastAPI Docs)
+### Frontend
+*   **Framework**: Expo (React Native) + TypeScript
+*   **Styling**: NativeWind (TailwindCSS)
+*   **Animation**: React Native Reanimated
+*   **State Management**: Zustand
+
+### Backend
+*   **Framework**: FastAPI (Python)
+*   **Database**: PostgreSQL (Docker)
+*   **AI Engine**: Contextual Bandit (ε-greedy)
 
 ---
 
 ## 📂 프로젝트 구조
 
 ```text
-fitness-ai-app/
+graduate_project/
 │
-├─ app/
-│  ├─ main.py
-│  ├─ routers/
-│  │  ├─ onboarding.py
-│  │  ├─ recommend.py
-│  │  ├─ log.py
-│  │  └─ reward.py
-│  ├─ services/
-│  │  ├─ candidate_generator.py
-│  │  ├─ recommender_bandit.py
-│  │  ├─ reward_service.py
-│  │  └─ fake_db.py
-│  ├─ schemas/
-│  │  └─ request_response.py
-│  └─ core/
-│     └─ config.py
+├─ app/                 # Backend (FastAPI)
+│  ├─ db/               # Database connection & models
+│  ├─ routers/          # API endpoints (onboarding, recommend, log, etc.)
+│  ├─ services/         # Business logic (recommender, reward calculation)
+│  └─ main.py           # Entry point
 │
-├─ requirements.txt
+├─ frontend/            # Mobile App (Expo)
+│  ├─ app/              # Expo Router screens
+│  └─ src/
+│     ├─ api/           # Axios client configuration
+│     ├─ components/    # Reusable UI components
+│     └─ store/         # State management (Zustand)
+│
+├─ docker-compose.yml   # Infrastructure (DB)
 └─ README.md
 ```
 
 ---
 
-## 🔄 전체 워크플로우
-
-### 1️⃣ Onboarding
-
-* 사용자 정보 입력 (나이, 목표, 경험 등)
-* 초기 안전 루틴 생성
-
----
-
-### 2️⃣ Daily Recommendation
-
-#### (1) 상태 수집 (State)
-
-* 위치 (집/헬스장)
-* 운동 가능 시간
-* 피로도 / 수면
-* 최근 수행률 / streak
-
-#### (2) 후보 생성 (Candidate Generator)
-
-* 부상 부위 제외
-* 장비 필터링
-* 강도 제한 적용
-
-#### (3) 추천 (Bandit)
-
-* ε-greedy 기반 탐색/활용
-* 최적 운동 선택
-
----
-
-### 3️⃣ 수행 및 로그 저장
-
-* 완료 여부
-* RPE (운동 난이도)
-* 통증 여부
-
----
-
-### 4️⃣ 보상 계산 (Reward)
-
-```python
-reward = 0
-if completed: +1
-if RPE 적정: +0.5
-if 통증: -1
-streak 보너스 추가
-```
-
----
-
-### 5️⃣ 학습 업데이트
-
-* (state, action, reward) 기반
-* Bandit 평균 보상 갱신
-
----
-
 ## 🚀 실행 방법
 
-### 1. 가상환경 생성
-
+### 1. 인프라 실행 (Docker)
 ```bash
-python -m venv venv
-venv\Scripts\activate
+docker-compose up -d
 ```
 
----
-
-### 2. 라이브러리 설치
-
+### 2. 백엔드 실행
 ```bash
-pip install -r requirements.txt
+cd graduate_project
+.\venv\Scripts\activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
----
-
-### 3. 서버 실행
-
+### 3. 프론트엔드 실행
 ```bash
-uvicorn app.main:app --reload
+cd frontend
+npx expo start -c
 ```
 
 ---
 
-### 4. Swagger 접속
+## 📊 핵심 기능
 
-```text
-http://127.0.0.1:8000/docs
-```
-
----
-
-## 🧪 API 테스트 순서
-
-### 1. Onboarding
-
-`POST /api/onboarding/`
+1.  **스마트 온보딩**: 사용자 신체 정보 및 운동 목표 수집.
+2.  **AI 맞춤 추천**: 위치, 피로도, 수면 상태를 고려한 최적의 운동 플랜 제공.
+3.  **보상 시스템**: 운동 완료 및 난이도 피드백을 통한 Bandit 모델 학습.
+4.  **시각적 가이드**: 추천 운동별 유튜브 가이드 영상 연결.
 
 ---
 
-### 2. Recommend
+## 🚧 향후 과제
 
-`POST /api/recommend/`
-
----
-
-### 3. Log
-
-`POST /api/log/`
-
----
-
-### 4. Reward
-
-`POST /api/reward/`
-
----
-
-## 📊 예시 결과
-
-### 추천 결과
-
-```json
-{
-  "selected_plan": {
-    "plan_id": "home_squat_basic"
-  },
-  "reason": "exploration"
-}
-```
-
----
-
-### 보상 결과
-
-```json
-{
-  "reward": 1.56,
-  "detail": {
-    "completion": 1.0,
-    "rpe_bonus": 0.5,
-    "pain_penalty": 0.0,
-    "streak_bonus": 0.06
-  }
-}
-```
-
----
-
-## 🔥 주요 특징
-
-* 규칙 기반 + AI 혼합 구조 (안전성 확보)
-* Contextual Bandit 기반 추천
-* 사용자 행동 기반 학습 구조
-* RL(MDP) 확장 가능 설계
-
----
-
-## ⚠️ 현재 한계
-
-* 사용자별 모델 분리 없음
-* 장기 RL 미구현
-* 푸시 알림 미구현
-
----
-
-## 🚧 향후 개선 방향
-
-* 사용자별 Bandit 모델
-* Thompson Sampling / LinUCB 적용
-* Reinforcement Learning (MDP) 확장
-* 푸시 알림 및 스케줄러 추가
-
----
-
-## 💡 한 줄 설명
-
-> 사용자 상태 기반으로 운동을 추천하고, 수행 결과를 학습하여 점점 더 개인화되는 AI 운동 추천 시스템
+*   🔥 **Streak 시스템**: 연속 운동일수 트래킹 및 보너스 보상 로직.
+*   📈 **데이터 시각화**: 주간 운동 리포트 및 성장 그래프.
+*   🔔 **푸시 알림**: 운동 시간 알림 및 리마인드 기능.

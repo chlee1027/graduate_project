@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Modal, FlatList } from "react-native";
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming } from "react-native-reanimated";
 import { useRouter, Stack } from "expo-router";
 import { useUserStore } from "../src/store/userStore";
 import client from "../src/api/client";
@@ -15,7 +16,7 @@ export default function Onboarding() {
 
   const [form, setForm] = useState({
     user_id: "user_" + Math.random().toString(36).substr(2, 5),
-    age: 25,
+    birth_year: 1999,
     sex: "male",
     height_cm: 175,
     weight_kg: 70,
@@ -27,9 +28,43 @@ export default function Onboarding() {
     equipment: ["dumbbell", "barbell"],
   });
 
+  // Liquid Animation Logic
+  const translateX = useSharedValue((3 - 1) * 40);
+  const scaleX = useSharedValue(1);
+
+  useEffect(() => {
+    // Even smoother transition with higher damping and lower stiffness to eliminate any oscillation
+    translateX.value = withSpring((form.weekly_available_days - 1) * 40, {
+      damping: 30,
+      stiffness: 100,
+    });
+    
+    // Very subtle stretch effect for a premium, calm feel
+    scaleX.value = withSequence(
+      withTiming(1.05, { duration: 150 }),
+      withSpring(1, { damping: 30 })
+    );
+  }, [form.weekly_available_days]);
+
+  const animatedBlobStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { scaleX: scaleX.value }
+    ],
+  }));
+
   const handleOnboarding = async () => {
     try {
-      const response = await client.post("/api/onboarding/", form);
+      // Calculate age from birth_year (Current year 2026)
+      const currentYear = 2026;
+      const calculatedAge = currentYear - form.birth_year;
+      
+      const submissionForm = {
+        ...form,
+        age: calculatedAge
+      };
+
+      const response = await client.post("/api/onboarding/", submissionForm);
       if (response.status === 200) {
         setUserId(form.user_id);
         setIsOnboarded(true);
@@ -42,32 +77,7 @@ export default function Onboarding() {
     }
   };
 
-  const SelectionGroup = ({ label, options, current, onSelect, noMargin }: any) => (
-    <View className={noMargin ? "" : "mb-6"}>
-      <Text className="text-gray-700 font-bold mb-3">{label}</Text>
-      <View className="flex-row flex-wrap">
-        {options.map((opt: any) => (
-          <TouchableOpacity
-            key={opt.value}
-            onPress={() => onSelect(opt.value)}
-            className={`mr-2 mb-2 px-4 py-2 rounded-full border ${
-              current === opt.value
-                ? "bg-blue-600 border-blue-600"
-                : "bg-white border-gray-300"
-            }`}
-          >
-            <Text
-              className={current === opt.value ? "text-white font-bold" : "text-gray-600"}
-            >
-              {opt.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
-
-  const ages = Array.from({ length: 51 }, (_, i) => i + 15);
+  const birthYears = Array.from({ length: 71 }, (_, i) => 2011 - i);
   const heights = Array.from({ length: 81 }, (_, i) => i + 140);
   const weights = Array.from({ length: 111 }, (_, i) => i + 40);
 
@@ -95,7 +105,7 @@ export default function Onboarding() {
                 }`}
               >
                 <Text className={`text-lg ${selectedValue === item ? "text-blue-600 font-bold" : "text-gray-600"}`}>
-                  {item}
+                  {item}{unit}
                 </Text>
               </TouchableOpacity>
             )}
@@ -105,58 +115,87 @@ export default function Onboarding() {
     </Modal>
   );
 
+  const RowItem = ({ label, children }: any) => (
+    <View className="flex-row items-center mb-4">
+      <Text className="w-24 text-gray-700 font-bold text-sm">{label}</Text>
+      <View className="flex-1">{children}</View>
+    </View>
+  );
+
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <Stack.Screen options={{ title: "회원 정보 입력" }} />
-      <ScrollView className="p-6">
-        <Text className="text-2xl font-bold mb-2">당신을 알려주세요</Text>
-        <Text className="text-gray-500 mb-8">AI가 당신에게 꼭 맞는 운동을 설계합니다.</Text>
-        
-        <View className="flex-row mb-6">
-          <View className="flex-1 mr-2">
-            <Text className="text-gray-700 font-bold mb-3">키 (cm)</Text>
-            <TouchableOpacity
-              onPress={() => setIsHeightModalVisible(true)}
-              className="bg-gray-50 h-14 px-4 rounded-xl border border-gray-200 flex-row justify-between items-center"
-            >
-              <Text className="text-gray-700 text-base" style={{ includeFontPadding: false }}>{form.height_cm}</Text>
-              <Text className="text-blue-600 font-bold text-xs">선택</Text>
-            </TouchableOpacity>
-          </View>
+      <Stack.Screen options={{ title: "", headerShown: false }} />
+      <ScrollView className="p-8 pt-12">
+        <Text className="text-3xl font-extrabold mb-4 text-gray-900">안녕하세요!</Text>
+        <Text className="text-gray-400 mb-10 text-sm">저에게 당신이 누군지 알려주세요 🙌</Text>
 
-          <View className="flex-1 ml-2">
-            <Text className="text-gray-700 font-bold mb-3">몸무게 (kg)</Text>
-            <TouchableOpacity
-              onPress={() => setIsWeightModalVisible(true)}
-              className="bg-gray-50 h-14 px-4 rounded-xl border border-gray-200 flex-row justify-between items-center"
-            >
-              <Text className="text-gray-700 text-base" style={{ includeFontPadding: false }}>{form.weight_kg}</Text>
-              <Text className="text-blue-600 font-bold text-xs">선택</Text>
-            </TouchableOpacity>
-          </View>
+        <View className="flex-row mb-8 justify-between px-2">
+          <TouchableOpacity
+            onPress={() => setForm({ ...form, sex: "male" })}
+            className={`w-[44%] aspect-square rounded-3xl border-2 items-center justify-center ${
+              form.sex === "male" ? "bg-blue-50 border-blue-600" : "bg-white border-gray-100"
+            }`}
+          >
+            <Text className="text-4xl mb-2">👦</Text>
+            <Text className={`text-base font-black ${form.sex === "male" ? "text-blue-600" : "text-gray-400"}`}>남성</Text>
+            {form.sex === "male" && (
+              <View className="absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full items-center justify-center">
+                <Text className="text-white text-[10px]">✓</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setForm({ ...form, sex: "female" })}
+            className={`w-[44%] aspect-square rounded-3xl border-2 items-center justify-center ${
+              form.sex === "female" ? "bg-blue-50 border-blue-600" : "bg-white border-gray-100"
+            }`}
+          >
+            <Text className="text-4xl mb-2">👧</Text>
+            <Text className={`text-base font-black ${form.sex === "female" ? "text-blue-600" : "text-gray-400"}`}>여성</Text>
+            {form.sex === "female" && (
+              <View className="absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full items-center justify-center">
+                <Text className="text-white text-[10px]">✓</Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
-        <View className="flex-row mb-6">
-          <View className="w-1/2 pr-2">
-            <Text className="text-gray-700 font-bold mb-3">나이 (세)</Text>
-            <TouchableOpacity
-              onPress={() => setIsAgeModalVisible(true)}
-              className="bg-gray-50 h-14 px-4 rounded-xl border border-gray-200 flex-row justify-between items-center"
-            >
-              <Text className="text-gray-700 text-base" style={{ includeFontPadding: false }}>{form.age}</Text>
-              <Text className="text-blue-600 font-bold text-xs">변경</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <RowItem label="출생연도는">
+          <TouchableOpacity
+            onPress={() => setIsAgeModalVisible(true)}
+            className="bg-gray-100 h-12 rounded-full flex-row justify-center items-center"
+          >
+            <Text className="text-gray-800 font-bold">{form.birth_year}년</Text>
+          </TouchableOpacity>
+        </RowItem>
+
+        <RowItem label="키는">
+          <TouchableOpacity
+            onPress={() => setIsHeightModalVisible(true)}
+            className="bg-gray-100 h-12 rounded-full flex-row justify-center items-center"
+          >
+            <Text className="text-gray-800 font-bold">{form.height_cm}cm</Text>
+          </TouchableOpacity>
+        </RowItem>
+
+        <RowItem label="몸무게는">
+          <TouchableOpacity
+            onPress={() => setIsWeightModalVisible(true)}
+            className="bg-gray-100 h-12 rounded-full flex-row justify-center items-center"
+          >
+            <Text className="text-gray-800 font-bold">{form.weight_kg}kg</Text>
+          </TouchableOpacity>
+        </RowItem>
 
         <VerticalPickerModal
           visible={isAgeModalVisible}
           onClose={() => setIsAgeModalVisible(false)}
-          data={ages}
-          selectedValue={form.age}
-          onSelect={(val: number) => setForm({ ...form, age: val })}
-          title="나이 선택"
-          unit="세"
+          data={birthYears}
+          selectedValue={form.birth_year}
+          onSelect={(val: number) => setForm({ ...form, birth_year: val })}
+          title="출생연도 선택"
+          unit="년"
         />
 
         <VerticalPickerModal
@@ -178,56 +217,107 @@ export default function Onboarding() {
           title="몸무게 선택"
           unit="kg"
         />
+        
+        <RowItem label="운동 목표는">
+          <View className="flex-row">
+            {[
+              { label: "체중 감량", value: "weight_loss" },
+              { label: "근력 증진", value: "muscle_gain" },
+              { label: "건강 유지", value: "fitness" },
+            ].map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                onPress={() => setForm({ ...form, goal: opt.value })}
+                className={`flex-1 mr-2 py-3 rounded-full border items-center ${
+                  form.goal === opt.value ? "bg-blue-600 border-blue-600" : "bg-white border-gray-300"
+                }`}
+              >
+                <Text className={form.goal === opt.value ? "text-white font-bold text-[11px]" : "text-gray-400 text-[11px] font-bold"}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </RowItem>
 
-        <SelectionGroup
-          label="성별"
-          options={[
-            { label: "남성", value: "male" },
-            { label: "여성", value: "female" },
-          ]}
-          current={form.sex}
-          onSelect={(v: string) => setForm({ ...form, sex: v })}
-        />
+        <RowItem label="숙련도는">
+          <View className="flex-row">
+            {[
+              { label: "초보", value: "beginner" },
+              { label: "중급", value: "intermediate" },
+              { label: "상급", value: "advanced" },
+            ].map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                onPress={() => setForm({ ...form, experience_level: opt.value })}
+                className={`flex-1 mr-2 py-3 rounded-full border items-center ${
+                  form.experience_level === opt.value ? "bg-blue-600 border-blue-600" : "bg-white border-gray-300"
+                }`}
+              >
+                <Text className={form.experience_level === opt.value ? "text-white font-bold text-[11px]" : "text-gray-400 font-bold text-[11px]"}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </RowItem>
 
-        <SelectionGroup
-          label="운동 목표"
-          options={[
-            { label: "체중 감량", value: "weight_loss" },
-            { label: "근력 증진", value: "muscle_gain" },
-            { label: "건강 유지", value: "fitness" },
-          ]}
-          current={form.goal}
-          onSelect={(v: string) => setForm({ ...form, goal: v })}
-        />
+        <RowItem label="선호 장소">
+          <View className="flex-row">
+            <TouchableOpacity
+              onPress={() => setForm({ ...form, place_preference: "home" })}
+              className={`flex-1 mr-2 py-3 rounded-full border items-center ${
+                form.place_preference === "home" ? "bg-blue-600 border-blue-600" : "bg-white border-gray-300"
+              }`}
+            >
+              <Text className={form.place_preference === "home" ? "text-white font-bold text-[11px]" : "text-gray-400 font-bold text-[11px]"}>홈트</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setForm({ ...form, place_preference: "gym" })}
+              className={`flex-1 py-3 rounded-full border items-center ${
+                form.place_preference === "gym" ? "bg-blue-600 border-blue-600" : "bg-white border-gray-300"
+              }`}
+            >
+              <Text className={form.place_preference === "gym" ? "text-white font-bold text-[11px]" : "text-gray-400 font-bold text-[11px]"}>헬스장</Text>
+            </TouchableOpacity>
+          </View>
+        </RowItem>
 
-        <SelectionGroup
-          label="숙련도"
-          options={[
-            { label: "초보자", value: "beginner" },
-            { label: "중급자", value: "intermediate" },
-            { label: "상급자", value: "advanced" },
-          ]}
-          current={form.experience_level}
-          onSelect={(v: string) => setForm({ ...form, experience_level: v })}
-        />
+        <RowItem label="주당 횟수">
+          <View className="bg-gray-100 p-1 rounded-2xl flex-row relative h-12 w-[288px] self-start items-center">
+            {/* Liquid Background Blob */}
+            <Animated.View 
+              style={[
+                { width: 40, height: 40 },
+                animatedBlobStyle
+              ]}
+              className="bg-blue-600 rounded-xl absolute top-1 left-1 shadow-sm"
+            />
+            
+            {[1, 2, 3, 4, 5, 6, 7].map((day) => (
+              <TouchableOpacity
+                key={day}
+                onPress={() => setForm({ ...form, weekly_available_days: day })}
+                className="w-10 h-10 items-center justify-center z-10"
+                activeOpacity={0.7}
+              >
+                <Text className={`font-black text-sm ${form.weekly_available_days === day ? "text-white" : "text-gray-400"}`}>
+                  {day}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text className="text-[10px] text-gray-400 mt-2 ml-1">주 {form.weekly_available_days}회 운동을 목표로 합니다.</Text>
+        </RowItem>
 
-        <SelectionGroup
-          label="선호 장소"
-          options={[
-            { label: "집 (홈트)", value: "home" },
-            { label: "헬스장", value: "gym" },
-          ]}
-          current={form.place_preference}
-          onSelect={(v: string) => setForm({ ...form, place_preference: v })}
-        />
-
-        <TouchableOpacity
-          className="bg-blue-600 p-5 rounded-2xl items-center mt-4 mb-10 shadow-lg shadow-blue-200"
-          onPress={handleOnboarding}
-        >
-          <Text className="text-white font-bold text-xl">시작하기</Text>
-        </TouchableOpacity>
       </ScrollView>
+      <TouchableOpacity
+        className="bg-blue-600 p-5 items-center justify-center flex-row"
+        onPress={handleOnboarding}
+      >
+        <Text className="text-white font-bold text-lg mr-2">반가워 👋</Text>
+        <Text className="text-white font-bold text-lg">›</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
