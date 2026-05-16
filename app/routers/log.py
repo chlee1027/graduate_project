@@ -3,12 +3,13 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import Recommendation, ExerciseLog
-from app.schemas.request_response import LogRequest, LogResponse
+from app.schemas.request_response import LogRequest
+from app.services.progression_service import check_user_progression
 
 router = APIRouter()
 
 
-@router.post("/", response_model=LogResponse)
+@router.post("/")
 def save_log(request: LogRequest, db: Session = Depends(get_db)):
     recommendation = (
         db.query(Recommendation)
@@ -35,9 +36,13 @@ def save_log(request: LogRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(log_item)
 
-    return LogResponse(
-        message="운동 로그가 저장되었습니다.",
-        saved_log={
+    # Check for level progression after saving log
+    progression_result = check_user_progression(db, request.user_id)
+
+    return {
+        "message": "운동 로그가 저장되었습니다.",
+        "progression": progression_result,
+        "saved_log": {
             "log_id": log_item.log_id,
             "recommendation_id": log_item.recommendation_id,
             "user_id": log_item.user_id,
@@ -50,4 +55,4 @@ def save_log(request: LogRequest, db: Session = Depends(get_db)):
             "pain_occurred": log_item.pain_occurred,
             "user_feedback": log_item.user_feedback,
         },
-    )
+    }

@@ -57,3 +57,17 @@ def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
         selected_plan=selected_plan,
         reason=result["reason"],
     )
+
+
+@router.get("/{recommendation_id}")
+def get_recommendation(recommendation_id: str, db: Session = Depends(get_db)):
+    recommendation = db.query(Recommendation).filter(Recommendation.recommendation_id == recommendation_id).first()
+    if not recommendation:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+    
+    return {
+        "recommendation_id": recommendation.recommendation_id,
+        "user_id": recommendation.user_id,
+        "selected_plan": json.loads(recommendation.selected_plan_json),
+        "created_at": recommendation.created_at
+    }
