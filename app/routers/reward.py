@@ -8,6 +8,7 @@ from app.db.models import Recommendation, ExerciseLog
 from app.schemas.request_response import RewardRequest, RewardResponse
 from app.services.reward_service import calculate_reward
 from app.services.recommender_bandit_db import update_bandit_db
+from app.services.streak_service import get_current_streak
 
 router = APIRouter()
 
@@ -37,11 +38,16 @@ def reward(request: RewardRequest, db: Session = Depends(get_db)):
     selected_plan = json.loads(recommendation.selected_plan_json)
     plan_id = selected_plan["plan_id"]
 
+    # Calculate current streak if not provided
+    current_streak = request.streak
+    if current_streak is None:
+        current_streak = get_current_streak(db, request.user_id)
+
     reward_value, detail = calculate_reward(
         completed=request.completed,
         rpe=request.rpe,
         pain_occurred=request.pain_occurred,
-        streak=request.streak,
+        streak=current_streak,
     )
 
     updated_stat = update_bandit_db(db, request.user_id, plan_id, reward_value)
@@ -50,6 +56,7 @@ def reward(request: RewardRequest, db: Session = Depends(get_db)):
         reward=reward_value,
         detail={
             **detail,
+            "streak": current_streak,
             "recommendation_id": request.recommendation_id,
             "user_id": request.user_id,
             "plan_id": plan_id,

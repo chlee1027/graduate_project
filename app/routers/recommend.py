@@ -9,6 +9,7 @@ from app.db.models import User, Recommendation
 from app.schemas.request_response import RecommendRequest, RecommendResponse
 from app.services.candidate_generator import generate_candidates
 from app.services.recommender_bandit_db import select_action_db
+from app.services.streak_service import get_current_streak
 
 router = APIRouter()
 
@@ -22,8 +23,14 @@ def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
             detail="User not found. Please complete onboarding first."
         )
 
+    # Calculate current streak if not provided
+    current_streak = request.streak
+    if current_streak is None:
+        current_streak = get_current_streak(db, request.user_id)
+
     state = request.model_dump()
     state["experience_level"] = user.experience_level
+    state["streak"] = current_streak
 
     candidates = generate_candidates(state)
     result = select_action_db(db, request.user_id, state, candidates)

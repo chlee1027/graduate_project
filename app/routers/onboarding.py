@@ -51,6 +51,6 @@ def onboarding(request: OnboardingRequest, db: Session = Depends(get_db)):
 
     return OnboardingResponse(
         user_id=request.user_id,
-        message="온보딩이 완료되었습니다.",
+        message="온보딩이 완료되었습니다. 이제 코치와 함께 운동을 시작해보세요!",
         initial_plan=initial_plan,
     )

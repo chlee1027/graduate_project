@@ -39,7 +39,36 @@ EXERCISE_POOL = [
         "minutes": 5,
         "sets": 1,
         "reps": 1,
+        "is_stretching": True,
         "video_url": "https://www.youtube.com/results?search_query=전신+스트레칭",
+    },
+    {
+        "plan_id": "home_stretch_full",
+        "name": "전신 이완 스트레칭",
+        "location": "home",
+        "required_equipment": [],
+        "target_parts": ["full_body"],
+        "avoid_if_pain": [],
+        "intensity": "low",
+        "minutes": 10,
+        "sets": 1,
+        "reps": 1,
+        "is_stretching": True,
+        "video_url": "https://www.youtube.com/results?search_query=전신+스트레칭+10분",
+    },
+    {
+        "plan_id": "home_neck_shoulder",
+        "name": "목/어깨 릴렉스",
+        "location": "home",
+        "required_equipment": [],
+        "target_parts": ["neck", "shoulder"],
+        "avoid_if_pain": [],
+        "intensity": "low",
+        "minutes": 5,
+        "sets": 1,
+        "reps": 1,
+        "is_stretching": True,
+        "video_url": "https://www.youtube.com/results?search_query=목+어깨+스트레칭",
     },
     {
         "plan_id": "home_burpee_power",
@@ -106,6 +135,20 @@ EXERCISE_POOL = [
         "reps": 1,
         "video_url": "https://www.youtube.com/results?search_query=실내자전거+타는법",
     },
+    {
+        "plan_id": "gym_foam_roller",
+        "name": "폼롤러 근막 이완",
+        "location": "gym",
+        "required_equipment": ["foam_roller"],
+        "target_parts": ["full_body"],
+        "avoid_if_pain": [],
+        "intensity": "low",
+        "minutes": 15,
+        "sets": 1,
+        "reps": 1,
+        "is_stretching": True,
+        "video_url": "https://www.youtube.com/results?search_query=폼롤러+전신+루틴",
+    },
 ]
 
 
@@ -158,8 +201,9 @@ def generate_candidates(state: Dict) -> List[Dict]:
     available_minutes = state["available_minutes"]
     fatigue = state["fatigue"]
     pain_parts = set(state["pain_parts"])
-    equipment_available = state["equipment_available"]
+    equipment_available = state.get("equipment_available", [])
     experience_level = state["experience_level"]
+    want_stretching = state.get("want_stretching", False)
 
     allowed_intensities = get_allowed_intensities(experience_level, fatigue)
 
@@ -169,7 +213,13 @@ def generate_candidates(state: Dict) -> List[Dict]:
         if ex["location"] != location:
             continue
 
-        if ex["intensity"] not in allowed_intensities:
+        # If user wants stretching, only show stretching
+        if want_stretching and not ex.get("is_stretching", False):
+            continue
+        
+        # If normal workout day, but user didn't explicitly ask for stretch, 
+        # still allow low-intensity ones but focus on intensities
+        if not want_stretching and ex["intensity"] not in allowed_intensities:
             continue
 
         if pain_parts.intersection(set(ex["avoid_if_pain"])):

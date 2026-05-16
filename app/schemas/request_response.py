@@ -31,8 +31,9 @@ class RecommendRequest(BaseModel):
     pain_parts: List[str] = []
     equipment_available: List[str] = []
     recent_adherence_7d: float = Field(..., ge=0.0, le=1.0)
-    streak: int = Field(..., ge=0)
+    streak: Optional[int] = Field(None, ge=0)
     avg_rpe_last_7d: float = Field(..., ge=0.0, le=10.0)
+    want_stretching: bool = False
 
 
 class RecommendResponse(BaseModel):
@@ -68,7 +69,7 @@ class RewardRequest(BaseModel):
     completed: bool
     rpe: float
     pain_occurred: bool
-    streak: int
+    streak: Optional[int] = None
 
 
 class RewardResponse(BaseModel):

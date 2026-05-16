@@ -2,7 +2,7 @@
 
 ## 📌 프로젝트 개요
 
-사용자의 건강 정보, 컨디션, 환경을 기반으로 **개인화된 운동을 추천하는 AI 시스템**입니다.
+사용자의 건강 정보, 컨디션, 환경을 기반으로 **개인화된 운동을 추천하는 AI 코칭 시스템**입니다.
 초기에는 **규칙 기반 + Contextual Bandit**으로 추천을 수행하고,
 데이터가 축적되면 **Reinforcement Learning (MDP)**으로 확장 가능한 구조입니다.
 
@@ -10,9 +10,10 @@
 
 ## 🎯 최근 업데이트 (2026.05.16)
 
-*   **UI/UX 혁신**: 온보딩 페이지 블루 테마 적용 및 캐릭터 기반 성별 선택 UI 도입.
-*   **인터랙티브 컴포넌트**: 리액트 네이티브 Reanimated를 이용한 '리퀴드 세그먼트' 슬라이더 구현.
-*   **추천 고도화**: 홈트/헬스장 장소 전환 토글 및 유튜브 가이드 영상 연동 완료.
+*   **연속 운동(Streak) 시스템**: 타임존(KST)을 지원하는 정교한 연속 운동일수 계산 로직 도입.
+*   **액티브 레스트(Active Rest)**: 컨디션에 따라 스트레칭으로 전환 가능한 유연한 추천 시스템.
+*   **브랜드 리뉴얼**: 사용자 친화적인 '코치(Coach)' 아이덴티티 적용 및 홈 대시보드 개편.
+*   **UI/UX 혁신**: 온보딩 캐릭터 카드 UI 및 Reanimated 기반 리퀴드 슬라이더 적용.
 
 ---
 
@@ -37,57 +38,34 @@
 graduate_project/
 │
 ├─ app/                 # Backend (FastAPI)
-│  ├─ db/               # Database connection & models
-│  ├─ routers/          # API endpoints (onboarding, recommend, log, etc.)
-│  ├─ services/         # Business logic (recommender, reward calculation)
+│  ├─ db/               # Database models & migrations
+│  ├─ routers/          # API (onboarding, recommend, log, user, debug)
+│  ├─ services/         # Logic (recommender, streak, reward)
 │  └─ main.py           # Entry point
 │
 ├─ frontend/            # Mobile App (Expo)
-│  ├─ app/              # Expo Router screens
+│  ├─ app/              # Expo Router screens (Home, Onboarding, Recommend)
 │  └─ src/
-│     ├─ api/           # Axios client configuration
-│     ├─ components/    # Reusable UI components
-│     └─ store/         # State management (Zustand)
+│     ├─ api/           # Axios client & endpoints
+│     ├─ store/         # Zustand global state
 │
-├─ docker-compose.yml   # Infrastructure (DB)
+├─ docker-compose.yml   # PostgreSQL setup
 └─ README.md
-```
-
----
-
-## 🚀 실행 방법
-
-### 1. 인프라 실행 (Docker)
-```bash
-docker-compose up -d
-```
-
-### 2. 백엔드 실행
-```bash
-cd graduate_project
-.\venv\Scripts\activate
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### 3. 프론트엔드 실행
-```bash
-cd frontend
-npx expo start -c
 ```
 
 ---
 
 ## 📊 핵심 기능
 
-1.  **스마트 온보딩**: 사용자 신체 정보 및 운동 목표 수집.
-2.  **AI 맞춤 추천**: 위치, 피로도, 수면 상태를 고려한 최적의 운동 플랜 제공.
-3.  **보상 시스템**: 운동 완료 및 난이도 피드백을 통한 Bandit 모델 학습.
-4.  **시각적 가이드**: 추천 운동별 유튜브 가이드 영상 연결.
+1.  **스마트 온보딩**: 캐릭터 기반 UI로 사용자 신체 정보 및 목표 수집.
+2.  **AI 맞춤 추천**: 위치, 피로도 및 **컨디션(Active Rest)**을 고려한 최적의 플랜 제공.
+3.  **습관 형성(Streak)**: 연속 운동일수(🔥) 트래킹을 통한 동기 부여.
+4.  **시각적 가이드**: 각 운동별 맞춤 유튜브 가이드 영상 연결.
 
 ---
 
 ## 🚧 향후 과제
 
-*   🔥 **Streak 시스템**: 연속 운동일수 트래킹 및 보너스 보상 로직.
-*   📈 **데이터 시각화**: 주간 운동 리포트 및 성장 그래프.
-*   🔔 **푸시 알림**: 운동 시간 알림 및 리마인드 기능.
+*   ⏱️ **워크아웃 세션**: 실시간 타이머 및 세트별 진행률 체크 기능.
+*   📈 **데이터 시각화**: 주간 운동 성과 리포트 및 성장 대시보드.
+*   🧹 **최종 정리**: 개발용 디버그 도구 제거 및 프로덕션 환경 최적화.
