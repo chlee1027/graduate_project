@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Modal, FlatList } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Modal, FlatList, Platform } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming } from "react-native-reanimated";
 import { useRouter, Stack } from "expo-router";
 import { useUserStore } from "../src/store/userStore";
 import client from "../src/api/client";
 import { SafeAreaView } from "react-native-safe-area-context";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 export default function Onboarding() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export default function Onboarding() {
   const [isAgeModalVisible, setIsAgeModalVisible] = useState(false);
   const [isHeightModalVisible, setIsHeightModalVisible] = useState(false);
   const [isWeightModalVisible, setIsWeightModalVisible] = useState(false);
+  const [isTimePickerVisible, setIsTimePickerVisible] = useState(false);
 
   const [form, setForm] = useState({
     user_id: "user_" + Math.random().toString(36).substr(2, 5),
@@ -26,7 +28,22 @@ export default function Onboarding() {
     weekly_available_days: 3,
     place_preference: "gym",
     equipment: ["dumbbell", "barbell"],
+    workout_time: "08:00", // 기본값 오전 8시
   });
+
+  const [workoutDate, setWorkoutDate] = useState(new Date(2026, 4, 17, 8, 0));
+
+  const onTimeChange = (event: any, selectedDate?: Date) => {
+    const show = Platform.OS === 'ios';
+    setIsTimePickerVisible(show);
+    
+    if (selectedDate) {
+      setWorkoutDate(selectedDate);
+      const hours = selectedDate.getHours().toString().padStart(2, '0');
+      const minutes = selectedDate.getMinutes().toString().padStart(2, '0');
+      setForm({ ...form, workout_time: `${hours}:${minutes}` });
+    }
+  };
 
   // Slider Logic (Dynamic width calculation)
   const [containerWidth, setContainerWidth] = useState(280); // Default safe width
@@ -61,9 +78,16 @@ export default function Onboarding() {
 
       const response = await client.post("/api/onboarding/", submissionForm);
       if (response.status === 200) {
+        // 알림 권한 요청 및 운동 알림 예약
+        const { registerForPushNotificationsAsync, scheduleWorkoutNotification } = require("../src/services/notificationService");
+        await registerForPushNotificationsAsync();
+        
+        const [hour, minute] = form.workout_time.split(":").map(Number);
+        await scheduleWorkoutNotification(hour, minute);
+
         setUserId(form.user_id);
         setIsOnboarded(true);
-        Alert.alert("완료", "온보딩이 성공적으로 완료되었습니다!");
+        Alert.alert("완료", `온보딩이 성공적으로 완료되었습니다!\n매일 ${form.workout_time}분에 알림을 보내드릴게요. 🔔`);
         router.replace("/");
       }
     } catch (error) {
@@ -75,6 +99,77 @@ export default function Onboarding() {
   const birthYears = Array.from({ length: 71 }, (_, i) => 2011 - i);
   const heights = Array.from({ length: 81 }, (_, i) => i + 140);
   const weights = Array.from({ length: 111 }, (_, i) => i + 40);
+  const hours_morning = ["06", "07", "08", "09", "10", "11"];
+  const hours_afternoon = ["12", "13", "14", "15", "16", "17"];
+  const hours_evening = ["18", "19", "20", "21", "22", "23"];
+  const hours_night = ["00", "01", "02", "03", "04", "05"];
+  const minutes = ["00", "15", "30", "45"];
+
+  const TimePickerModal = ({ visible, onClose, selectedTime, onSelect }: any) => {
+    const [h, m] = selectedTime.split(":");
+    
+    const HourGroup = ({ title, data }: { title: string, data: string[] }) => (
+      <View className="mb-4">
+        <Text className="text-[10px] font-bold text-gray-400 uppercase mb-2 ml-1">{title}</Text>
+        <View className="flex-row flex-wrap">
+          {data.map((item) => (
+            <TouchableOpacity 
+              key={item} 
+              onPress={() => onSelect(`${item}:${m}`)} 
+              className={`w-[15%] aspect-square items-center justify-center rounded-xl mr-2 mb-2 ${h === item ? "bg-blue-600" : "bg-gray-50 border border-gray-100"}`}
+            >
+              <Text className={`font-black text-sm ${h === item ? "text-white" : "text-gray-600"}`}>{item}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    );
+
+    return (
+      <Modal visible={visible} transparent={true} animationType="slide">
+        <View className="flex-1 justify-end bg-black/50">
+          <View className="bg-white rounded-t-[48px] p-8 h-[75%]">
+            <View className="flex-row justify-between items-center mb-8">
+              <View>
+                <Text className="text-2xl font-black text-gray-900">시간 설정 ⏰</Text>
+                <Text className="text-blue-600 font-bold text-xs mt-1">현재 설정: {h}시 {m}분</Text>
+              </View>
+              <TouchableOpacity onPress={onClose} className="bg-blue-50 px-6 py-3 rounded-2xl">
+                <Text className="text-blue-600 font-black">확인</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+              {/* Hour Selection Grid */}
+              <View className="mb-8">
+                <Text className="text-base font-black text-gray-800 mb-4">시 (Hour)</Text>
+                <HourGroup title="Morning" data={hours_morning} />
+                <HourGroup title="Afternoon" data={hours_afternoon} />
+                <HourGroup title="Evening" data={hours_evening} />
+                <HourGroup title="Late Night" data={hours_night} />
+              </View>
+
+              {/* Minute Selection Grid */}
+              <View className="mb-10">
+                <Text className="text-base font-black text-gray-800 mb-4">분 (Minute)</Text>
+                <View className="flex-row">
+                  {minutes.map((item) => (
+                    <TouchableOpacity 
+                      key={item} 
+                      onPress={() => onSelect(`${h}:${item}`)} 
+                      className={`flex-1 aspect-square items-center justify-center rounded-2xl mr-3 ${m === item ? "bg-blue-600" : "bg-gray-50 border border-gray-100"}`}
+                    >
+                      <Text className={`font-black text-lg ${m === item ? "text-white" : "text-gray-600"}`}>{item}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
 
   const VerticalPickerModal = ({ visible, onClose, data, selectedValue, onSelect, title, unit }: any) => (
     <Modal visible={visible} transparent={true} animationType="slide">
@@ -279,9 +374,64 @@ export default function Onboarding() {
           </View>
         </View>
 
+        {/* Workout Time Picker */}
+        <View className="mb-10 px-2">
+          <Text className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-4 ml-2">운동 알림 시간</Text>
+          <TouchableOpacity
+            onPress={() => setIsTimePickerVisible(true)}
+            className="bg-gray-50 p-6 rounded-[32px] border border-gray-100 flex-row justify-between items-center"
+          >
+            <View className="flex-row items-center">
+              <View className="w-10 h-10 bg-white rounded-2xl items-center justify-center mr-4 shadow-sm">
+                <Text className="text-xl">⏰</Text>
+              </View>
+              <Text className="text-gray-900 font-black text-lg">{form.workout_time}</Text>
+            </View>
+            <Text className="text-blue-600 font-bold text-xs">변경하기</Text>
+          </TouchableOpacity>
+        </View>
+
       </ScrollView>
 
-      {/* Modals */}
+      {/* 중앙 정렬된 네이티브 시간 선택 모달 */}
+      <Modal visible={isTimePickerVisible} transparent={true} animationType="fade">
+        <View className="flex-1 justify-center items-center bg-black/50 px-8">
+          <View className="bg-white w-full rounded-[40px] p-8 items-center shadow-2xl">
+            <Text className="text-xl font-black text-gray-900 mb-6 text-center">언제 운동할까요? ⏰</Text>
+            
+            <View className="w-full items-center justify-center">
+              <DateTimePicker
+                value={workoutDate}
+                mode="time"
+                is24Hour={true}
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={onTimeChange}
+                textColor="#111827"
+                style={{ width: 250, height: 180 }}
+              />
+            </View>
+
+            <TouchableOpacity 
+              onPress={() => setIsTimePickerVisible(false)}
+              className="mt-6 bg-blue-600 w-full py-4 rounded-2xl items-center shadow-lg active:opacity-90"
+            >
+              <Text className="text-white font-black text-lg">선택 완료</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              onPress={async () => {
+                const { testImmediateNotification } = require("../src/services/notificationService");
+                await testImmediateNotification();
+                Alert.alert("알림 예약", "5초 뒤에 알림이 울리는지 확인해 보세요! 🔔\n(앱을 백그라운드로 내려두시면 더 잘 보입니다)");
+              }}
+              className="mt-4 bg-gray-100 w-full py-3 rounded-2xl items-center border border-gray-200"
+            >
+              <Text className="text-gray-500 font-bold">🔔 알림 작동 테스트 (5초 뒤)</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <VerticalPickerModal
         visible={isAgeModalVisible}
         onClose={() => setIsAgeModalVisible(false)}

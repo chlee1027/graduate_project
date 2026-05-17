@@ -46,19 +46,27 @@ def get_user_stats_summary(user_id: str, db: Session = Depends(get_db)):
     )
 
     # 응답 포맷 구성
-    # Get all stretching plan IDs to identify them in logs
-    from app.services.candidate_generator import EXERCISE_POOL
-    stretching_ids = {ex["plan_id"] for ex in EXERCISE_POOL if ex.get("is_stretching")}
-    gym_ids = {ex["plan_id"] for ex in EXERCISE_POOL if ex["location"] == "gym"}
+    # DB에서 스트레칭 및 헬스장 운동 ID 목록 가져오기
+    from app.db.models import ExercisePlan
+    all_plans = db.query(ExercisePlan.plan_id, ExercisePlan.location, ExercisePlan.is_stretching).all()
+    stretching_ids = {p.plan_id for p in all_plans if p.is_stretching}
+    gym_ids = {p.plan_id for p in all_plans if p.location == "gym"}
 
     workout_map = {}
+    completed_days_count = 0
     for log in weekly_logs:
         w_type = "home"
+        is_stretching = False
         if log.plan_id in stretching_ids:
             w_type = "stretch"
+            is_stretching = True
         elif log.plan_id in gym_ids:
             w_type = "gym"
-        workout_map[log.workout_date] = w_type
+        
+        if log.workout_date not in workout_map:
+            if not is_stretching:
+                completed_days_count += 1
+            workout_map[log.workout_date] = w_type
 
     activity_chart = []
     for i in range(7):
@@ -76,5 +84,47 @@ def get_user_stats_summary(user_id: str, db: Session = Depends(get_db)):
         "total_workout_minutes": int(total_stats.total_minutes or 0),
         "current_streak": get_current_streak(db, user_id),
         "experience_level": user.experience_level,
+        "weekly_goal": user.weekly_available_days,
+        "completed_days_this_week": completed_days_count,
         "activity_chart": activity_chart
     }
+
+@router.get("/{user_id}/weekly-details")
+def get_weekly_workout_details(user_id: str, db: Session = Depends(get_db)):
+    """
+    이번 주 수행한 운동의 상세 목록을 가져옵니다.
+    """
+    today = datetime.now().date()
+    seven_days_ago = today - timedelta(days=6)
+    
+    from app.db.models import ExercisePlan
+    # DB에서 플랜 정보 미리 로드
+    plans = db.query(ExercisePlan).all()
+    plan_map = {p.plan_id: p for p in plans}
+
+    logs = (
+        db.query(ExerciseLog)
+        .filter(
+            ExerciseLog.user_id == user_id,
+            ExerciseLog.completed == True,
+            func.date(func.timezone('Asia/Seoul', func.timezone('UTC', ExerciseLog.created_at))) >= seven_days_ago
+        )
+        .order_by(ExerciseLog.created_at.desc())
+        .all()
+    )
+
+    result = []
+    for log in logs:
+        plan_info = plan_map.get(log.plan_id)
+        result.append({
+            "log_id": log.log_id,
+            "plan_name": plan_info.name if plan_info else "Unknown Exercise",
+            "minutes": log.actual_minutes,
+            "sets": log.actual_sets,
+            "date": log.created_at.strftime("%Y-%m-%d"),
+            "time": log.created_at.strftime("%H:%M"),
+            "location": plan_info.location if plan_info else "home",
+            "is_stretching": plan_info.is_stretching if plan_info else False
+        })
+
+    return result

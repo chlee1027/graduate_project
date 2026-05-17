@@ -99,9 +99,46 @@ export default function Home() {
               
               {userStatus && (
                 <View className="space-y-4">
+                  {/* Weekly Goal Progress */}
+                  <View className="bg-blue-50 p-6 rounded-[32px] border border-blue-100 shadow-sm mb-2">
+                    <View className="flex-row justify-between items-end mb-4">
+                      <View>
+                        <Text className="font-black text-blue-900 text-lg">주간 목표 달성도</Text>
+                        <Text className="text-blue-600 font-bold text-xs uppercase mt-0.5">
+                          {userStatus.completed_days_this_week >= userStatus.weekly_goal 
+                            ? "🎉 목표 달성! 대단해요!" 
+                            : `이번 주 ${userStatus.weekly_goal}회 중 ${userStatus.completed_days_this_week}회 완료`}
+                        </Text>
+                      </View>
+                      <Text className="text-blue-900 font-black text-2xl">
+                        {Math.min(100, Math.round((userStatus.completed_days_this_week / userStatus.weekly_goal) * 100))}%
+                      </Text>
+                    </View>
+                    <View className="h-4 bg-white rounded-full overflow-hidden border border-blue-100">
+                      <View 
+                        style={{ width: `${Math.min(100, (userStatus.completed_days_this_week / userStatus.weekly_goal) * 100)}%` }}
+                        className="h-full bg-blue-600 rounded-full"
+                      />
+                    </View>
+                    {userStatus.completed_days_this_week >= userStatus.weekly_goal && (
+                      <View className="mt-4 bg-white/60 p-3 rounded-2xl items-center">
+                        <Text className="text-blue-800 font-black text-xs">이번 주 목표를 모두 달성했습니다! 🏆</Text>
+                      </View>
+                    )}
+                  </View>
+
                   {/* Weekly Activity Chart */}
-                  <View className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm">
-                    <Text className="font-black text-gray-800 text-lg mb-5">주간 활동</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => router.push("/stats/weekly")}
+                    className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm"
+                  >
+                    <View className="flex-row justify-between items-center mb-5">
+                      <Text className="font-black text-gray-800 text-lg">주간 활동</Text>
+                      <View className="bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
+                        <Text className="text-gray-400 text-[10px] font-black uppercase">자세히 보기 ❯</Text>
+                      </View>
+                    </View>
                     <View className="flex-row justify-between items-center px-1">
                       {userStatus.activity_chart.map((day: any) => (
                         <View key={day.date} className="items-center">
@@ -134,7 +171,7 @@ export default function Home() {
                       <View className="flex-row items-center ml-4"><View className="w-3 h-3 rounded-full bg-purple-500 mr-2"/><Text className="text-[10px] font-bold text-gray-500">홈트</Text></View>
                       <View className="flex-row items-center ml-4"><View className="w-3 h-3 rounded-full bg-emerald-500 mr-2"/><Text className="text-[10px] font-bold text-gray-500">회복</Text></View>
                     </View>
-                  </View>
+                  </TouchableOpacity>
 
                   {/* Overall Stats Cards */}
                   <View className="flex-row justify-between">

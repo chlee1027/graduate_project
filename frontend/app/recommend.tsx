@@ -10,10 +10,10 @@ export default function Recommend() {
   const { userId } = useUserStore();
   const [loading, setLoading] = useState(true);
   const [recommendation, setRecommendation] = useState<any>(null);
-  const [location, setLocation] = useState<"home" | "gym">("gym");
+  const [location, setLocation] = useState<"gym" | "home">("gym");
   const [wantStretching, setWantStretching] = useState(false);
 
-  const fetchRecommendation = async (currentLocation: string, stretching: boolean = false) => {
+  const fetchRecommendation = async (currentLocation: "gym" | "home", stretching: boolean = false) => {
     setLoading(true);
     try {
       const response = await client.post("/api/recommend/", {
@@ -46,7 +46,7 @@ export default function Recommend() {
     }
   }, [userId]);
 
-  const handleLocationChange = (newLoc: "home" | "gym") => {
+  const handleLocationChange = (newLoc: "gym" | "home") => {
     setLocation(newLoc);
     fetchRecommendation(newLoc, wantStretching);
   };
@@ -61,7 +61,9 @@ export default function Recommend() {
     return (
       <View className="flex-1 justify-center items-center">
         <ActivityIndicator size="large" color="#2563eb" />
-        <Text className="mt-4 text-gray-500">AI가 {location === "home" ? "홈트" : "헬스장"} 맞춤 운동을 찾고 있습니다...</Text>
+        <Text className="mt-4 text-gray-500">
+          AI가 {wantStretching ? "회복" : location === "gym" ? "헬스장" : "홈트"} 맞춤 플랜을 찾고 있습니다...
+        </Text>
       </View>
     );
   }
@@ -72,36 +74,78 @@ export default function Recommend() {
       <ScrollView className="p-6 pt-10" showsVerticalScrollIndicator={false}>
         <View className="mb-8">
           <Text className="text-3xl font-black text-gray-900">오늘의 추천</Text>
+          <Text className="text-gray-400 font-bold text-xs uppercase mt-1">당신에게 가장 적합한 루틴을 제안합니다</Text>
         </View>
 
         <View className="flex-row bg-gray-100 p-1.5 rounded-3xl mb-8">
           <TouchableOpacity
-            onPress={() => handleLocationChange("home")}
-            className={`flex-1 py-3 rounded-2xl items-center ${location === "home" ? "bg-white shadow-md" : ""}`}
+            onPress={() => handleLocationChange("gym")}
+            className={`flex-1 py-3 rounded-2xl items-center ${location === "gym" ? "bg-white shadow-sm" : ""}`}
           >
-            <Text className={`font-bold ${location === "home" ? "text-blue-600" : "text-gray-400"}`}>🏠 홈트</Text>
+            <Text className={`font-black text-xs ${location === "gym" ? "text-blue-600" : "text-gray-400"}`}>🏋️ 헬스장</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => handleLocationChange("gym")}
-            className={`flex-1 py-3 rounded-2xl items-center ${location === "gym" ? "bg-white shadow-md" : ""}`}
+            onPress={() => handleLocationChange("home")}
+            className={`flex-1 py-3 rounded-2xl items-center ${location === "home" ? "bg-white shadow-sm" : ""}`}
           >
-            <Text className={`font-bold ${location === "gym" ? "text-blue-600" : "text-gray-400"}`}>🏋️ 헬스장</Text>
+            <Text className={`font-black text-xs ${location === "home" ? "text-blue-600" : "text-gray-400"}`}>🏠 홈트</Text>
           </TouchableOpacity>
         </View>
 
         {recommendation ? (
           <>
-            <View className={`p-8 rounded-[40px] border mb-8 ${wantStretching ? "bg-green-50 border-green-100" : "bg-blue-50 border-blue-100"}`}>
+            <View 
+              style={{ 
+                backgroundColor: 
+                  wantStretching ? '#f0fdf4' : // emerald-50
+                  recommendation.selected_plan.intensity === 'high' ? '#fef2f2' : 
+                  recommendation.selected_plan.intensity === 'medium' ? '#fffbeb' : 
+                  '#f0fdf4',
+                borderColor:
+                  wantStretching ? '#dcfce7' : // emerald-100
+                  recommendation.selected_plan.intensity === 'high' ? '#fee2e2' : 
+                  recommendation.selected_plan.intensity === 'medium' ? '#fef3c7' : 
+                  '#dcfce7'
+              }}
+              className="p-8 rounded-[40px] border mb-8"
+            >
               <View className="flex-row justify-between items-start mb-6">
                 <View>
-                  <Text className={`text-[10px] font-black uppercase tracking-widest mb-1 ${wantStretching ? "text-green-600" : "text-blue-600"}`}>
+                  <Text 
+                    style={{ 
+                      color: 
+                        wantStretching ? '#059669' : // emerald-600
+                        recommendation.selected_plan.intensity === 'high' ? '#dc2626' : 
+                        recommendation.selected_plan.intensity === 'medium' ? '#d97706' : 
+                        '#16a34a'
+                    }}
+                    className="text-[10px] font-black uppercase tracking-widest mb-1"
+                  >
                     {wantStretching ? "액티브 레스트" : "오늘의 플랜"}
                   </Text>
-                  <Text className={`text-2xl font-black ${wantStretching ? "text-green-900" : "text-blue-900"}`}>
+                  <Text 
+                    style={{ 
+                      color: 
+                        wantStretching ? '#064e3b' : // emerald-900
+                        recommendation.selected_plan.intensity === 'high' ? '#7f1d1d' : 
+                        recommendation.selected_plan.intensity === 'medium' ? '#78350f' : 
+                        '#064e3b'
+                    }}
+                    className="text-2xl font-black"
+                  >
                     {recommendation.selected_plan.name}
                   </Text>
                 </View>
-                <View className={`px-3 py-1 rounded-full ${wantStretching ? "bg-green-600" : "bg-blue-600"}`}>
+                <View 
+                  style={{ 
+                    backgroundColor: 
+                      wantStretching ? '#10b981' : // emerald-500
+                      recommendation.selected_plan.intensity === 'high' ? '#dc2626' : 
+                      recommendation.selected_plan.intensity === 'medium' ? '#d97706' : 
+                      '#16a34a'
+                  }}
+                  className="px-3 py-1 rounded-full"
+                >
                   <Text className="text-white font-bold text-[10px]">{recommendation.selected_plan.intensity.toUpperCase()}</Text>
                 </View>
               </View>
@@ -112,8 +156,10 @@ export default function Recommend() {
                   <Text className="text-gray-900 font-black text-lg">{recommendation.selected_plan.minutes}분</Text>
                 </View>
                 <View>
-                  <Text className="text-gray-400 text-[10px] font-bold uppercase mb-1">세트/횟수</Text>
-                  <Text className="text-gray-900 font-black text-lg">{recommendation.selected_plan.sets}세트 × {recommendation.selected_plan.reps}회</Text>
+                  <Text className="text-gray-400 text-[10px] font-bold uppercase mb-1">{recommendation.selected_plan.type === 'time-based' ? '유형' : '세트/횟수'}</Text>
+                  <Text className="text-gray-900 font-black text-lg">
+                    {recommendation.selected_plan.type === 'time-based' ? '지속 수행' : `${recommendation.selected_plan.sets}세트 × ${recommendation.selected_plan.reps}회`}
+                  </Text>
                 </View>
               </View>
 
@@ -122,13 +168,40 @@ export default function Recommend() {
                   onPress={() => Linking.openURL(recommendation.selected_plan.video_url)}
                   className="bg-white/80 py-4 rounded-2xl flex-row items-center justify-center border border-white shadow-sm active:opacity-90"
                 >
-                  <Text className={`font-black text-sm ${wantStretching ? "text-green-600" : "text-blue-600"}`}>📺 가이드 영상 보기</Text>
+                  <Text 
+                    style={{ 
+                      color: 
+                        wantStretching ? '#059669' :
+                        recommendation.selected_plan.intensity === 'high' ? '#dc2626' : 
+                        recommendation.selected_plan.intensity === 'medium' ? '#d97706' : 
+                        '#16a34a'
+                    }}
+                    className="font-black text-sm"
+                  >
+                    📺 가이드 영상 보기
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
 
+            {wantStretching && (
+              <View className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 mb-6 flex-row items-center">
+                <Text className="text-xl mr-3">💡</Text>
+                <Text className="text-emerald-800 text-[10px] font-bold flex-1">
+                  스트레칭은 '회복 세션'입니다.{"\n"}성실한 운동 데이터 축적을 위해 주간 목표 횟수에는 포함되지 않아요!
+                </Text>
+              </View>
+            )}
+
             <TouchableOpacity
-              className={`p-5 rounded-3xl items-center shadow-lg mb-4 active:opacity-90 ${wantStretching ? "bg-green-600" : "bg-blue-600"}`}
+              style={{ 
+                backgroundColor: 
+                  wantStretching ? '#10b981' :
+                  recommendation.selected_plan.intensity === 'high' ? '#dc2626' : 
+                  recommendation.selected_plan.intensity === 'medium' ? '#d97706' : 
+                  '#16a34a'
+              }}
+              className="p-5 rounded-3xl items-center shadow-lg mb-4 active:opacity-90"
               onPress={() => router.push({
                 pathname: `/workout/${recommendation.selected_plan.plan_id}`,
                 params: { recommendation_id: recommendation.recommendation_id }
@@ -139,10 +212,10 @@ export default function Recommend() {
 
             <TouchableOpacity
               onPress={toggleStretching}
-              className="py-4 items-center"
+              className="py-4 items-center mb-4"
             >
-              <Text className={`font-bold text-sm ${wantStretching ? "text-blue-600" : "text-gray-400"}`}>
-                {wantStretching ? "원래 추천 플랜으로 돌아가기" : "오늘은 몸이 좀 무거워요... (스트레칭)"}
+              <Text className={`font-black text-xs ${wantStretching ? "text-blue-600" : "text-gray-400"}`}>
+                {wantStretching ? "↻ 원래 추천 플랜으로 돌아가기" : "오늘은 좀 몸이 무거워요... (스트레칭) 🧘"}
               </Text>
             </TouchableOpacity>
           </>
@@ -153,10 +226,10 @@ export default function Recommend() {
         )}
         
         <TouchableOpacity
-          className="p-4 items-center"
+          className="p-4 items-center bg-gray-50 rounded-2xl mx-10 border border-gray-100"
           onPress={() => fetchRecommendation(location, wantStretching)}
         >
-          <Text className="text-blue-600">다른 추천 받기</Text>
+          <Text className="text-blue-600 font-bold text-[10px]">다른 추천 받기 ↻</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

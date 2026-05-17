@@ -32,7 +32,7 @@ def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
     state["experience_level"] = user.experience_level
     state["streak"] = current_streak
 
-    candidates = generate_candidates(state)
+    candidates = generate_candidates(state, db)
     result = select_action_db(db, request.user_id, state, candidates)
     selected_plan = result["selected_plan"]
 

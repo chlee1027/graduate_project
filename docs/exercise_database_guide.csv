@@ -1,0 +1,43 @@
+﻿운동 이름,장소,유형,타겟 부위,강도,전체 시간(분),세트 수,회수/세트,권장 RPE,휴식(초),MET 지수
+맨몸 스쿼트,home,rep-based,"legs,glutes",medium,10,3,15,6,60,5.0
+푸쉬업,home,rep-based,"chest,arms,shoulder",medium,10,3,12,7,90,8.0
+워킹 런지,home,rep-based,"legs,glutes",high,12,3,20,8,60,6.0
+다이아몬드 푸쉬업,home,rep-based,"arms,chest",high,10,3,8,8,90,8.0
+크런치,home,rep-based,core,low,8,3,20,5,45,3.0
+레그 레이즈,home,rep-based,"core,legs",medium,8,3,15,6,60,3.5
+플랭크 업다운,home,rep-based,"core,shoulder,arms",high,10,3,12,8,60,7.0
+글루트 브릿지,home,rep-based,"glutes,lower_back",low,10,3,20,4,45,3.0
+슈퍼맨 홀드,home,time-based,"back,glutes",medium,5,3,1,6,45,3.0
+버피 테스트,home,rep-based,full_body,high,15,4,15,9,60,10.0
+마운틴 클라이머,home,time-based,"core,cardio",high,10,3,1,8,60,8.0
+벽 대고 버티기 (월싯),home,time-based,legs,medium,6,3,1,7,60,4.0
+컨벤셔널 데드리프트,gym,rep-based,"back,legs,core",high,25,5,5,9,180,6.0
+바벨 벤치프레스,gym,rep-based,"chest,arms",high,20,5,8,8,120,6.0
+바벨 백 스쿼트,gym,rep-based,"legs,glutes",high,25,5,8,9,150,7.0
+랫풀다운 (와이드),gym,rep-based,back,medium,15,4,12,7,90,4.0
+덤벨 숄더 프레스,gym,rep-based,shoulder,medium,15,4,10,7,90,4.5
+레그 프레스,gym,rep-based,legs,medium,15,4,12,7,120,5.0
+시티드 로우,gym,rep-based,back,medium,15,4,12,7,90,4.0
+인클라인 벤치프레스,gym,rep-based,"chest,shoulder",high,20,4,8,8,120,6.0
+레그 컬 (햄스트링),gym,rep-based,legs,low,10,3,15,6,60,3.5
+사이드 레터럴 레이즈,gym,rep-based,shoulder,low,12,4,15,7,60,3.0
+바벨 컬 (이두),gym,rep-based,arms,low,10,3,12,6,60,3.0
+케이블 푸쉬다운 (삼두),gym,rep-based,arms,low,10,3,12,6,60,3.0
+체스트 플라이 머신,gym,rep-based,chest,medium,12,3,15,7,60,4.0
+루마니안 데드리프트,gym,rep-based,"back,glutes,legs",high,20,4,10,8,120,5.5
+풀업 (턱걸이),gym,rep-based,"back,arms",high,15,4,8,9,120,8.0
+딥스 (삼두/가슴),gym,rep-based,"arms,chest",high,12,3,10,8,90,7.0
+레그 익스텐션,gym,rep-based,legs,medium,10,3,15,7,60,4.0
+트레드밀 인터벌,gym,time-based,cardio,high,20,1,1,8,0,10.0
+실내 자전거,gym,time-based,"cardio,legs",medium,30,1,1,6,0,7.0
+엘립티컬,gym,time-based,"cardio,full_body",medium,20,1,1,5,0,5.0
+모닝 전신 스트레칭,home,time-based,full_body,low,10,1,1,3,0,2.5
+허리 통증 완화 스트레칭,home,time-based,"back,core",low,10,1,1,3,0,2.0
+거북목 교정 스트레칭,home,time-based,"neck,shoulder",low,5,1,1,2,0,1.5
+골반 교정 스트레칭,home,time-based,"glutes,legs",low,12,1,1,4,0,2.3
+하체 폼롤러 마사지,home,time-based,"legs,glutes",low,15,1,1,4,0,2.5
+등/허리 폼롤러 마사지,home,time-based,back,low,10,1,1,3,0,2.5
+기초 요가 루틴,home,time-based,"full_body,core",low,20,1,1,4,0,3.3
+동적 웜업 루틴,home,time-based,full_body,medium,8,1,1,5,0,4.0
+전신 폼롤러 근막이완,gym,time-based,full_body,low,15,1,1,4,0,2.5
+취면 전 숙면 스트레칭,home,time-based,full_body,low,10,1,1,2,0,1.5

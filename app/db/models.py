@@ -21,6 +21,28 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class ExercisePlan(Base):
+    __tablename__ = "exercise_plans"
+
+    plan_id = Column(String, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    location = Column(String, nullable=False)  # home, gym
+    type = Column(String, nullable=False)      # rep-based, time-based
+    required_equipment = Column(Text, nullable=True)  # Comma separated
+    target_parts = Column(Text, nullable=False)       # Comma separated
+    avoid_if_pain = Column(Text, nullable=True)       # Comma separated
+    intensity = Column(String, nullable=False) # low, medium, high
+    minutes = Column(Integer, nullable=False)  # Total base minutes
+    sets = Column(Integer, nullable=False)
+    reps = Column(Integer, nullable=False)
+    target_rpe = Column(Integer, nullable=True)  # Recommended RPE (1-10)
+    rest_seconds = Column(Integer, default=60)   # Recommended rest time
+    met_value = Column(Float, default=3.0)       # Metabolic Equivalent of Task
+    is_stretching = Column(Boolean, default=False)
+    video_url = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Recommendation(Base):
     __tablename__ = "recommendations"
 
@@ -38,7 +60,7 @@ class ExerciseLog(Base):
     log_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     recommendation_id = Column(String, ForeignKey("recommendations.recommendation_id"), nullable=False)
     user_id = Column(String, ForeignKey("users.user_id"), nullable=False)
-    plan_id = Column(String, nullable=False)
+    plan_id = Column(String, ForeignKey("exercise_plans.plan_id"), nullable=False)
     completed = Column(Boolean, nullable=False)
     actual_minutes = Column(Integer, default=0)
     actual_sets = Column(Integer, nullable=True)
@@ -57,7 +79,7 @@ class BanditStat(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id = Column(String, ForeignKey("users.user_id"), nullable=False)
-    plan_id = Column(String, nullable=False)
+    plan_id = Column(String, ForeignKey("exercise_plans.plan_id"), nullable=False)
     count = Column(Integer, default=0, nullable=False)
     total_reward = Column(Float, default=0.0, nullable=False)
     avg_reward = Column(Float, default=0.0, nullable=False)
