@@ -4,6 +4,7 @@ import { useRouter, Stack } from "expo-router";
 import { useUserStore } from "../src/store/userStore";
 import client from "../src/api/client";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function Recommend() {
   const router = useRouter();
@@ -68,10 +69,61 @@ export default function Recommend() {
     );
   }
 
+  const getThemeColors = () => {
+    if (wantStretching) {
+      return {
+        bg: '#f0fdf4', // emerald-50
+        border: '#dcfce7', // emerald-100
+        accent: '#059669', // emerald-600
+        text: '#064e3b', // emerald-900
+        button: '#10b981', // emerald-500
+        label: "액티브 레스트"
+      };
+    }
+
+    const intensity = recommendation.selected_plan.intensity;
+    if (location === 'gym') {
+      // 헬스장: 파란색 계열
+      if (intensity === 'low') {
+        return { bg: '#eff6ff', border: '#dbeafe', accent: '#3b82f6', text: '#1e3a8a', button: '#3b82f6', label: "오늘의 플랜" };
+      } else if (intensity === 'medium') {
+        return { bg: '#dbeafe', border: '#bfdbfe', accent: '#2563eb', text: '#1e3a8a', button: '#2563eb', label: "오늘의 플랜" };
+      } else { // high
+        return { bg: '#bfdbfe', border: '#93c5fd', accent: '#1d4ed8', text: '#1e3a8a', button: '#1d4ed8', label: "오늘의 플랜" };
+      }
+    } else {
+      // 홈트: 연두/초록색 계열
+      if (intensity === 'low') {
+        return { bg: '#f7fee7', border: '#ecfccb', accent: '#65a30d', text: '#365314', button: '#84cc16', label: "오늘의 플랜" };
+      } else if (intensity === 'medium') {
+        return { bg: '#ecfccb', border: '#d9f99d', accent: '#4d7c0f', text: '#365314', button: '#65a30d', label: "오늘의 플랜" };
+      } else { // high
+        return { bg: '#d9f99d', border: '#bef264', accent: '#3f6212', text: '#1a2e05', button: '#4d7c0f', label: "오늘의 플랜" };
+      }
+    }
+  };
+
+  const theme = recommendation ? getThemeColors() : null;
+
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <Stack.Screen options={{ title: "추천 결과", headerShown: false }} />
-      <ScrollView className="p-6 pt-10" showsVerticalScrollIndicator={false}>
+      <Stack.Screen options={{ 
+        title: "오늘의 추천", 
+        headerShown: true,
+        headerStyle: { backgroundColor: '#2563eb' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: "900", fontSize: 18 },
+        headerShadowVisible: false,
+        headerLeft: () => (
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            className="ml-3 w-10 h-10 items-center justify-center rounded-full active:opacity-60"
+          >
+            <Ionicons name="chevron-back" size={28} color="#fff" style={{ marginLeft: -3 }} />
+          </TouchableOpacity>
+        )
+      }} />
+      <ScrollView className="p-6 pt-4" showsVerticalScrollIndicator={false}>
         <View className="mb-8">
           <Text className="text-3xl font-black text-gray-900">오늘의 추천</Text>
           <Text className="text-gray-400 font-bold text-xs uppercase mt-1">당신에게 가장 적합한 루틴을 제안합니다</Text>
@@ -92,60 +144,22 @@ export default function Recommend() {
           </TouchableOpacity>
         </View>
 
-        {recommendation ? (
+        {recommendation && theme ? (
           <>
             <View 
-              style={{ 
-                backgroundColor: 
-                  wantStretching ? '#f0fdf4' : // emerald-50
-                  recommendation.selected_plan.intensity === 'high' ? '#fef2f2' : 
-                  recommendation.selected_plan.intensity === 'medium' ? '#fffbeb' : 
-                  '#f0fdf4',
-                borderColor:
-                  wantStretching ? '#dcfce7' : // emerald-100
-                  recommendation.selected_plan.intensity === 'high' ? '#fee2e2' : 
-                  recommendation.selected_plan.intensity === 'medium' ? '#fef3c7' : 
-                  '#dcfce7'
-              }}
+              style={{ backgroundColor: theme.bg, borderColor: theme.border }}
               className="p-8 rounded-[40px] border mb-8"
             >
               <View className="flex-row justify-between items-start mb-6">
                 <View>
-                  <Text 
-                    style={{ 
-                      color: 
-                        wantStretching ? '#059669' : // emerald-600
-                        recommendation.selected_plan.intensity === 'high' ? '#dc2626' : 
-                        recommendation.selected_plan.intensity === 'medium' ? '#d97706' : 
-                        '#16a34a'
-                    }}
-                    className="text-[10px] font-black uppercase tracking-widest mb-1"
-                  >
-                    {wantStretching ? "액티브 레스트" : "오늘의 플랜"}
+                  <Text style={{ color: theme.accent }} className="text-[10px] font-black uppercase tracking-widest mb-1">
+                    {theme.label}
                   </Text>
-                  <Text 
-                    style={{ 
-                      color: 
-                        wantStretching ? '#064e3b' : // emerald-900
-                        recommendation.selected_plan.intensity === 'high' ? '#7f1d1d' : 
-                        recommendation.selected_plan.intensity === 'medium' ? '#78350f' : 
-                        '#064e3b'
-                    }}
-                    className="text-2xl font-black"
-                  >
+                  <Text style={{ color: theme.text }} className="text-2xl font-black">
                     {recommendation.selected_plan.name}
                   </Text>
                 </View>
-                <View 
-                  style={{ 
-                    backgroundColor: 
-                      wantStretching ? '#10b981' : // emerald-500
-                      recommendation.selected_plan.intensity === 'high' ? '#dc2626' : 
-                      recommendation.selected_plan.intensity === 'medium' ? '#d97706' : 
-                      '#16a34a'
-                  }}
-                  className="px-3 py-1 rounded-full"
-                >
+                <View style={{ backgroundColor: theme.accent }} className="px-3 py-1 rounded-full">
                   <Text className="text-white font-bold text-[10px]">{recommendation.selected_plan.intensity.toUpperCase()}</Text>
                 </View>
               </View>
@@ -168,16 +182,7 @@ export default function Recommend() {
                   onPress={() => Linking.openURL(recommendation.selected_plan.video_url)}
                   className="bg-white/80 py-4 rounded-2xl flex-row items-center justify-center border border-white shadow-sm active:opacity-90"
                 >
-                  <Text 
-                    style={{ 
-                      color: 
-                        wantStretching ? '#059669' :
-                        recommendation.selected_plan.intensity === 'high' ? '#dc2626' : 
-                        recommendation.selected_plan.intensity === 'medium' ? '#d97706' : 
-                        '#16a34a'
-                    }}
-                    className="font-black text-sm"
-                  >
+                  <Text style={{ color: theme.accent }} className="font-black text-sm">
                     📺 가이드 영상 보기
                   </Text>
                 </TouchableOpacity>
@@ -194,13 +199,7 @@ export default function Recommend() {
             )}
 
             <TouchableOpacity
-              style={{ 
-                backgroundColor: 
-                  wantStretching ? '#10b981' :
-                  recommendation.selected_plan.intensity === 'high' ? '#dc2626' : 
-                  recommendation.selected_plan.intensity === 'medium' ? '#d97706' : 
-                  '#16a34a'
-              }}
+              style={{ backgroundColor: theme.button }}
               className="p-5 rounded-3xl items-center shadow-lg mb-4 active:opacity-90"
               onPress={() => router.push({
                 pathname: `/workout/${recommendation.selected_plan.plan_id}`,

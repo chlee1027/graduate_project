@@ -78,7 +78,10 @@ export default function WeeklyDetails() {
 
                     <View className="items-end">
                       <Text className="text-blue-600 font-black text-lg">{log.minutes}분</Text>
-                      <Text className="text-gray-400 text-[10px] font-bold uppercase">{log.sets} 세트</Text>
+                      <View className="flex-row items-center">
+                        <Text className="text-orange-500 font-bold text-[10px] mr-1">🔥 {Math.round(log.calories)}kcal</Text>
+                        <Text className="text-gray-400 text-[10px] font-bold uppercase">{log.sets} 세트</Text>
+                      </View>
                     </View>
                   </View>
                 ))}

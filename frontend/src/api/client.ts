@@ -1,8 +1,8 @@
 import axios from "axios";
 
-// Update this to your local IP if testing on a real device via Expo Go
-// Your current detected IP: 192.168.45.241
-const BASE_URL = "http://192.168.45.241:8000";
+// [중요] 외부 접속(Tunnel) 모드 사용 시:
+// 백엔드 터널 주소 적용 (npx localtunnel --port 8000)
+const BASE_URL = "https://puny-hats-hug.loca.lt"; 
 
 const client = axios.create({
   baseURL: BASE_URL,

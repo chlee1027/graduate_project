@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional, Literal
 from pydantic import BaseModel, Field
 
@@ -77,3 +78,28 @@ class RewardRequest(BaseModel):
 class RewardResponse(BaseModel):
     reward: float
     detail: dict
+
+
+class UserUpdateRequest(BaseModel):
+    age: Optional[int] = None
+    height_cm: Optional[float] = None
+    weight_kg: Optional[float] = None
+    goal: Optional[Literal["weight_loss", "muscle_gain", "fitness"]] = None
+    experience_level: Optional[Literal["beginner", "intermediate", "advanced"]] = None
+    weekly_available_days: Optional[int] = None
+    place_preference: Optional[Literal["home", "gym"]] = None
+
+
+class UserDetailResponse(BaseModel):
+    user_id: str
+    age: int
+    sex: str
+    height_cm: float
+    weight_kg: float
+    goal: str
+    experience_level: str
+    injuries: List[str]
+    weekly_available_days: int
+    place_preference: str
+    equipment: List[str]
+    created_at: datetime

@@ -5,6 +5,8 @@ import { useUserStore } from "../src/store/userStore";
 import client from "../src/api/client";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Ionicons } from "@expo/vector-icons";
+
 export default function Home() {
   const { userId, isOnboarded } = useUserStore();
   const router = useRouter();
@@ -41,14 +43,26 @@ export default function Home() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <Stack.Screen options={{ title: "Fitness AI", headerShown: false }} />
+    <SafeAreaView className="flex-1 bg-white" edges={['top']}>
+      <Stack.Screen options={{ 
+        title: "Fitness AI", 
+        headerShown: true,
+        headerStyle: { backgroundColor: '#2563eb' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: "900", fontSize: 20 },
+        headerShadowVisible: false,
+        headerRight: () => (
+          <TouchableOpacity 
+            onPress={() => router.push("/profile")}
+            className="mr-5"
+            activeOpacity={0.7}
+          >
+            <Ionicons name="person-circle-outline" size={32} color="#fff" />
+          </TouchableOpacity>
+        )
+      }} />
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="p-6 pt-10">
-          <View className="mb-8">
-            <Text className="text-3xl font-black text-gray-900">홈</Text>
-          </View>
-
+        <View className="p-6 pt-2">
           {isOnboarded && (
             <View className="mb-6 bg-blue-600 p-8 rounded-[40px] shadow-xl relative overflow-hidden">
               {/* Background Decorative Circles */}
@@ -172,78 +186,6 @@ export default function Home() {
                       <View className="flex-row items-center ml-4"><View className="w-3 h-3 rounded-full bg-emerald-500 mr-2"/><Text className="text-[10px] font-bold text-gray-500">회복</Text></View>
                     </View>
                   </TouchableOpacity>
-
-                  {/* Overall Stats Cards */}
-                  <View className="flex-row justify-between">
-                    <View className="bg-gray-50 w-[48%] p-6 rounded-[32px] border border-gray-100">
-                      <View className="w-10 h-10 bg-white rounded-2xl items-center justify-center mb-4 shadow-sm">
-                        <Text className="text-lg">⏲️</Text>
-                      </View>
-                      <Text className="text-gray-400 text-[10px] font-bold uppercase mb-1">누적 시간</Text>
-                      <View className="flex-row items-baseline">
-                        <Text className="text-2xl font-black text-gray-900">{userStatus.total_workout_minutes}</Text>
-                        <Text className="text-gray-400 font-bold text-xs ml-1">분</Text>
-                      </View>
-                    </View>
-
-                    <View className="bg-gray-50 w-[48%] p-6 rounded-[32px] border border-gray-100">
-                      <View className="w-10 h-10 bg-white rounded-2xl items-center justify-center mb-4 shadow-sm">
-                        <Text className="text-lg">🏆</Text>
-                      </View>
-                      <Text className="text-gray-400 text-[10px] font-bold uppercase mb-1">완료 세션</Text>
-                      <View className="flex-row items-baseline">
-                        <Text className="text-2xl font-black text-gray-900">{userStatus.total_completed_workouts}</Text>
-                        <Text className="text-gray-400 font-bold text-xs ml-1">회</Text>
-                      </View>
-                    </View>
-                  </View>
-                  
-                  {/* User Level Card - Dynamic Styling */}
-                  <View 
-                    style={{ 
-                      backgroundColor: 
-                        userStatus.experience_level === 'beginner' ? '#ecfdf5' : // emerald-50
-                        userStatus.experience_level === 'intermediate' ? '#eff6ff' : // blue-50
-                        '#fffbeb' // amber-50
-                    }}
-                    className={`p-6 rounded-[32px] border flex-row items-center justify-between ${
-                      userStatus.experience_level === 'beginner' ? 'border-emerald-100' : 
-                      userStatus.experience_level === 'intermediate' ? 'border-blue-100' : 
-                      'border-amber-100'
-                    }`}
-                  >
-                    <View>
-                      <Text className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${
-                        userStatus.experience_level === 'beginner' ? 'text-emerald-600' : 
-                        userStatus.experience_level === 'intermediate' ? 'text-blue-600' : 
-                        'text-amber-600'
-                      }`}>
-                        Current Expertise
-                      </Text>
-                      <Text className={`text-2xl font-black uppercase ${
-                        userStatus.experience_level === 'beginner' ? 'text-emerald-900' : 
-                        userStatus.experience_level === 'intermediate' ? 'text-blue-900' : 
-                        'text-amber-900'
-                      }`}>
-                        {userStatus.experience_level}
-                      </Text>
-                    </View>
-                    <View className={`px-4 py-2 rounded-2xl bg-white shadow-sm border ${
-                      userStatus.experience_level === 'beginner' ? 'border-emerald-200' : 
-                      userStatus.experience_level === 'intermediate' ? 'border-blue-200' : 
-                      'border-amber-200'
-                    }`}>
-                      <Text className={`font-black text-xs ${
-                        userStatus.experience_level === 'beginner' ? 'text-emerald-600' : 
-                        userStatus.experience_level === 'intermediate' ? 'text-blue-600' : 
-                        'text-amber-600'
-                      }`}>
-                        {userStatus.experience_level === 'beginner' ? '🌱 Start' : 
-                         userStatus.experience_level === 'intermediate' ? '🚀 Growing' : 
-                         '👑 Elite'}
-                      </Text>
-                    </View>
-                  </View>
                 </View>
               )}
 

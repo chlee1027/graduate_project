@@ -9,23 +9,20 @@
 
 ## 🎯 주요 성과 및 업데이트 (2026.05.17)
 
-### 🧬 과학적 운동 데이터베이스 (Seeded)
-*   **42종의 전문 운동 플랜**: PostgreSQL DB에 총 42개의 고품질 운동 데이터를 이식했습니다.
-*   **객관적 지표 적용**: 모든 운동에 **타겟 RPE(강도), 권장 휴식 시간, MET(대사량)** 지수를 부여하여 전문성을 확보했습니다.
-*   **DB 가이드 생성**: 전체 운동 라이브러리를 한눈에 볼 수 있는 엑셀 가이드 파일(`docs/exercise_database_guide.csv`)을 생성했습니다.
+### 🧬 과학적 운동 데이터베이스 및 칼로리 계산
+*   **42종의 전문 운동 플랜**: PostgreSQL DB에 42개의 고품질 운동 데이터를 이식하고 AI 엔진과 연동했습니다.
+*   **칼로리 소모량 계산기**: DB의 **MET 지수**와 사용자 **체중**을 결합한 과학적 계산 공식을 적용했습니다.
+
+### 👤 마이페이지 및 사용자 프로필 관리
+*   **정보 수정 기능**: 키, 몸무게, 운동 목표 등을 언제든 수정할 수 있는 마이페이지를 새롭게 구축했습니다.
+*   **UI 클린업**: 홈 화면의 복잡한 통계 수치들을 마이페이지로 이동시켜 사용자 경험을 최적화했습니다.
 
 ### ⏱️ 독립형 단계별 타이머 시스템
 *   **WORK/REST 분리**: 운동 페이즈와 휴식 페이즈를 명확히 구분한 독립 타이머 시스템을 구축했습니다.
-*   **현실적인 시간 배분**: 전체 권장 시간을 세트 수로 나누어 각 세트당 적절한 카운트다운을 제공합니다.
-*   **수행 검증 로직**: 시간 기반(70%), 횟수 기반(50%)의 세트별 최소 이수 시간을 강제하여 데이터 신뢰성을 높였습니다.
+*   **수행 검증 로직**: 시간 기반(70%), 횟수 기반(50%)의 세트별 최소 이수 시간을 강제하여 데이터 신뢰성을 확보했습니다.
 
-### 🔔 스마트 알림 및 리텐션
-*   **푸시 알림**: `expo-notifications`를 연동하여 사용자가 설정한 운동 시간에 맞춰 매일 알림을 발송합니다.
-*   **네이티브 온보딩**: 시스템 순정 시간 선택기(Time Picker)를 중앙 모달 형태로 구현하여 접근성을 높였습니다.
-
-### 📊 대시보드 및 리포트
-*   **주간 목표 달성 바**: 홈 화면에서 이번 주 운동 목표 달성도를 실시간으로 확인 가능합니다.
-*   **상세 활동 리스트**: 최근 7일간 수행한 운동의 상세 로그(이름, 세트, 시간)를 조회할 수 있습니다.
+### 🌐 원격 접속 환경 (Tunneling)
+*   **외부 환경 테스트 지원**: `localtunnel`과 `Expo Tunnel`을 활용하여 장소에 구애받지 않고 앱을 테스트할 수 있는 네트워크 환경을 구축했습니다.
 
 ---
 
@@ -34,103 +31,19 @@
 ### Frontend
 *   **Framework**: Expo (React Native SDK 54+) + TypeScript
 *   **State**: Zustand (User & Session store)
-*   **Animation**: React Native Reanimated
-*   **Native**: Expo Notifications, Device, Constants, DateTimePicker
+*   **Native**: Expo Notifications, Device, Constants, DateTimePicker, localtunnel
 
 ### Backend
 *   **Framework**: FastAPI (Python 3.10+)
 *   **Database**: PostgreSQL (Docker-Compose)
-*   **AI Engine**: Contextual Bandit (ε-greedy) + Experience-based Adjustment Service
-
----
-
-## 📂 프로젝트 구조
-
-```text
-graduate_project/
-│
-├─ app/                 # Backend (FastAPI)
-│  ├─ db/               # PostgreSQL Models
-│  ├─ routers/          # recommend, stats, log, reward, onboarding
-│  └─ services/         # candidate_generator, bandit_logic, streak_service
-│
-├─ frontend/            # Mobile App (Expo)
-│  ├─ app/              # Expo Router (workout/, stats/weekly.tsx)
-│  └─ src/              # components, api, store, services(notifications)
-│
-├─ scripts/             # Setup & Utility Scripts (Seeding, CSV generation)
-├─ docs/                # Documentation & Excel Guides
-└─ README.md
-```
-
----
-
-## 🚀 시작하기 (Getting Started)
-
-### 📋 사전 준비 (Prerequisites)
-*   **Docker Desktop**: 데이터베이스(PostgreSQL) 실행을 위해 필요합니다.
-*   **Python 3.10+**: 백엔드 서버 실행을 위해 필요합니다.
-*   **Node.js & npm**: 프런트엔드(Expo) 실행을 위해 필요합니다.
-
----
-
-### 1. 백엔드 설정 (Backend Setup)
-
-1.  **가상환경 생성 및 활성화**:
-    ```powershell
-    python -m venv venv
-    .\venv\Scripts\activate
-    ```
-2.  **의존성 설치**:
-    ```powershell
-    pip install -r requirements.txt
-    ```
-3.  **환경 변수 설정**:
-    *   `.env.example` 파일을 복사하여 `.env` 파일을 생성하고, 필요에 따라 DB 접속 정보를 수정합니다.
-4.  **데이터베이스 실행 (Docker)**:
-    ```powershell
-    docker-compose up -d
-    ```
-5.  **데이터베이스 초기화 (Seeding)**:
-    ```powershell
-    $env:PYTHONPATH = "."
-    python scripts/seed_db.py
-    ```
-6.  **서버 실행**:
-    ```powershell
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    ```
-
----
-
-### 2. 프런트엔드 설정 (Frontend Setup)
-
-1.  **경로 이동**:
-    ```powershell
-    cd frontend
-    ```
-2.  **의존성 설치**:
-    ```powershell
-    npm install --legacy-peer-deps
-    ```
-3.  **앱 실행**:
-    ```powershell
-    npx expo start -c
-    ```
-    *   터미널에 나타나는 QR 코드를 스마트폰의 **Expo Go** 앱으로 스캔하여 확인합니다.
-
----
-
-### 💡 문제 해결 (Troubleshooting)
-*   **네트워크 오류**: 프런트엔드에서 백엔드로 접속이 안 될 경우, `frontend/src/api/client.ts` 파일에서 `BASE_URL`의 IP 주소가 본인 컴퓨터의 로컬 IP(IPv4)와 일치하는지 확인하세요.
-*   **DB 연결 실패**: Docker Desktop이 실행 중인지, 포트 5432가 이미 사용 중이지 않은지 확인하세요.
+*   **AI Engine**: Contextual Bandit (ε-greedy)
 
 ---
 
 ## 🚧 향후 과제 (Next Priority)
 
-1.  **인앱 가이드 영상 플레이어**: 외부 링크 이탈 없이 앱 내에서 운동 가이드를 시청하는 기능.
-2.  **칼로리 소모 리포트**: MET 지수와 체중 데이터를 결합한 실시간 소모 열량 대시보드.
+1.  **UI 정밀 교정**: 헤더 버튼 및 아이콘들의 정중앙 정렬(Vertical/Horizontal) 미세 조정.
+2.  **인앱 가이드 영상 플레이어**: 외부 링크 이탈 없이 앱 내에서 운동 가이드를 시청하는 기능.
 3.  **프로덕션 클린업**: 개발용 테스트 로직(5초 통과 등) 및 디버그 버튼 제거.
 
 ---

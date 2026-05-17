@@ -222,7 +222,7 @@ export default function Onboarding() {
             <Text className={`text-sm font-black ${form.sex === "male" ? "text-blue-600" : "text-gray-400"}`}>남성</Text>
             {form.sex === "male" && (
               <View className="absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full items-center justify-center">
-                <Text className="text-white text-[10px]">✓</Text>
+                <Text className="text-white text-[13px]">✓</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -237,7 +237,7 @@ export default function Onboarding() {
             <Text className={`text-sm font-black ${form.sex === "female" ? "text-blue-600" : "text-gray-400"}`}>여성</Text>
             {form.sex === "female" && (
               <View className="absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full items-center justify-center">
-                <Text className="text-white text-[10px]">✓</Text>
+                <Text className="text-white text-[13px]">✓</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -249,7 +249,7 @@ export default function Onboarding() {
             onPress={() => setIsAgeModalVisible(true)}
             className="bg-white h-12 rounded-2xl flex-row justify-between items-center px-5 border border-gray-100"
           >
-            <Text className="text-gray-400 font-bold text-xs">출생연도</Text>
+            <Text className="text-gray-400 font-bold text-[14px]">출생연도</Text>
             <Text className="text-blue-600 font-black text-base">{form.birth_year}년</Text>
           </TouchableOpacity>
 
@@ -258,7 +258,7 @@ export default function Onboarding() {
               onPress={() => setIsHeightModalVisible(true)}
               className="bg-white h-12 rounded-2xl flex-1 flex-row justify-between items-center px-5 mr-3 border border-gray-100"
             >
-              <Text className="text-gray-400 font-bold text-[10px]">키</Text>
+              <Text className="text-gray-400 font-bold text-[14px]">키</Text>
               <Text className="text-blue-600 font-black text-base">{form.height_cm}cm</Text>
             </TouchableOpacity>
 
@@ -266,7 +266,7 @@ export default function Onboarding() {
               onPress={() => setIsWeightModalVisible(true)}
               className="bg-white h-12 rounded-2xl flex-1 flex-row justify-between items-center px-5 border border-gray-100"
             >
-              <Text className="text-gray-400 font-bold text-[10px]">몸무게</Text>
+              <Text className="text-gray-400 font-bold text-[14px]">몸무게</Text>
               <Text className="text-blue-600 font-black text-base">{form.weight_kg}kg</Text>
             </TouchableOpacity>
           </View>
@@ -275,7 +275,7 @@ export default function Onboarding() {
         {/* Rows - Extremely Compact */}
         <View className="space-y-5">
           <View>
-            <Text className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-2 ml-2">운동 목표</Text>
+            <Text className="text-gray-400 font-bold text-[14px] uppercase tracking-widest mb-2 ml-2">운동 목표</Text>
             <View className="flex-row">
               {[
                 { label: "체중 감량", value: "weight_loss" },
@@ -286,10 +286,10 @@ export default function Onboarding() {
                   key={opt.value}
                   onPress={() => setForm({ ...form, goal: opt.value })}
                   className={`flex-1 mr-2 py-3 rounded-xl border-2 items-center ${
-                    form.goal === opt.value ? "bg-blue-600 border-blue-600 shadow-md" : "bg-white border-gray-100"
+                    form.goal === opt.value ? "bg-blue-600 border-blue-600 shadow-md" : "bg-white border border-gray-100"
                   }`}
                 >
-                  <Text className={`font-black text-[9px] ${form.goal === opt.value ? "text-white" : "text-gray-400"}`}>
+                  <Text className={`font-black text-[11px] ${form.goal === opt.value ? "text-white" : "text-gray-400"}`}>
                     {opt.label}
                   </Text>
                 </TouchableOpacity>
@@ -298,7 +298,7 @@ export default function Onboarding() {
           </View>
 
           <View>
-            <Text className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-2 ml-2">숙련도</Text>
+            <Text className="text-gray-400 font-bold text-[14px] uppercase tracking-widest mb-2 ml-2">숙련도</Text>
             <View className="flex-row">
               {[
                 { label: "초보", value: "beginner" },
@@ -309,10 +309,10 @@ export default function Onboarding() {
                   key={opt.value}
                   onPress={() => setForm({ ...form, experience_level: opt.value })}
                   className={`flex-1 mr-2 py-3 rounded-xl border-2 items-center ${
-                    form.experience_level === opt.value ? "bg-blue-600 border-blue-600 shadow-md" : "bg-white border-gray-100"
+                    form.experience_level === opt.value ? "bg-blue-600 border-blue-600 shadow-md" : "bg-white border border-gray-100"
                   }`}
                 >
-                  <Text className={`font-black text-[10px] ${form.experience_level === opt.value ? "text-white" : "text-gray-400"}`}>
+                  <Text className={`font-black text-[11px] ${form.experience_level === opt.value ? "text-white" : "text-gray-400"}`}>
                     {opt.label}
                   </Text>
                 </TouchableOpacity>
@@ -321,12 +321,12 @@ export default function Onboarding() {
           </View>
 
           <View>
-            <Text className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-2 ml-2">선호 장소</Text>
+            <Text className="text-gray-400 font-bold text-[14px] uppercase tracking-widest mb-2 ml-2">선호 장소</Text>
             <View className="flex-row">
               <TouchableOpacity
                 onPress={() => setForm({ ...form, place_preference: "home" })}
                 className={`flex-1 mr-2 py-3 rounded-xl border-2 items-center ${
-                  form.place_preference === "home" ? "bg-blue-600 border-blue-600 shadow-md" : "bg-white border-gray-100"
+                  form.place_preference === "home" ? "bg-blue-600 border-blue-600 shadow-md" : "bg-white border border-gray-100"
                 }`}
               >
                 <Text className={`font-black text-xs ${form.place_preference === "home" ? "text-white" : "text-gray-400"}`}>🏠 홈트</Text>
@@ -334,7 +334,7 @@ export default function Onboarding() {
               <TouchableOpacity
                 onPress={() => setForm({ ...form, place_preference: "gym" })}
                 className={`flex-1 py-3 rounded-xl border-2 items-center ${
-                  form.place_preference === "gym" ? "bg-blue-600 border-blue-600 shadow-md" : "bg-white border-gray-100"
+                  form.place_preference === "gym" ? "bg-blue-600 border-blue-600 shadow-md" : "bg-white border border-gray-100"
                 }`}
               >
                 <Text className={`font-black text-xs ${form.place_preference === "gym" ? "text-white" : "text-gray-400"}`}>🏋️ 헬스장</Text>
@@ -346,7 +346,7 @@ export default function Onboarding() {
         {/* Weekly Frequency */}
         <View className="mt-6 mb-10">
           <View className="flex-row justify-between items-center mb-4 ml-2">
-            <Text className="text-gray-400 font-bold text-[10px] uppercase tracking-widest">주당 운동 횟수</Text>
+            <Text className="text-gray-400 font-bold text-[14px] uppercase tracking-widest">주당 운동 횟수</Text>
             <Text className="text-blue-600 font-black text-base">{form.weekly_available_days}회</Text>
           </View>
           <View 
@@ -376,7 +376,7 @@ export default function Onboarding() {
 
         {/* Workout Time Picker */}
         <View className="mb-10 px-2">
-          <Text className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-4 ml-2">운동 알림 시간</Text>
+          <Text className="text-gray-400 font-bold text-[14px] uppercase tracking-widest mb-4 ml-2">운동 알림 시간</Text>
           <TouchableOpacity
             onPress={() => setIsTimePickerVisible(true)}
             className="bg-gray-50 p-6 rounded-[32px] border border-gray-100 flex-row justify-between items-center"
@@ -385,9 +385,9 @@ export default function Onboarding() {
               <View className="w-10 h-10 bg-white rounded-2xl items-center justify-center mr-4 shadow-sm">
                 <Text className="text-xl">⏰</Text>
               </View>
-              <Text className="text-gray-900 font-black text-lg">{form.workout_time}</Text>
+              <Text className="text-blue-600 font-black text-lg">{form.workout_time}</Text>
             </View>
-            <Text className="text-blue-600 font-bold text-xs">변경하기</Text>
+            <Text className="text-gray-400 font-bold text-xs">변경하기</Text>
           </TouchableOpacity>
         </View>
 
