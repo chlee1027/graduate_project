@@ -5,11 +5,12 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models import User, Recommendation
+from app.db.models import User, Recommendation, ExerciseLog
 from app.schemas.request_response import RecommendRequest, RecommendResponse
 from app.services.candidate_generator import generate_candidates
 from app.services.recommender_bandit_db import select_action_db
 from app.services.streak_service import get_current_streak
+from datetime import datetime, timedelta
 
 router = APIRouter()
 
@@ -23,6 +24,30 @@ def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
             detail="User not found. Please complete onboarding first."
         )
 
+    # 1. 영구 부상 리스트 (User model)
+    injuries = set([p.strip() for p in (user.injuries or "").split(",") if p.strip()])
+
+    # 2. 최근 7일간 보고된 통증 부위 (ExerciseLog) - Dynamic blacklisting
+    seven_days_ago = datetime.now() - timedelta(days=7)
+    recent_pain_logs = (
+        db.query(ExerciseLog.pain_parts)
+        .filter(
+            ExerciseLog.user_id == request.user_id,
+            ExerciseLog.pain_occurred == True,
+            ExerciseLog.created_at >= seven_days_ago
+        )
+        .all()
+    )
+    
+    recent_pain_parts = set()
+    for log in recent_pain_logs:
+        if log.pain_parts:
+            parts = [p.strip() for p in log.pain_parts.split(",") if p.strip()]
+            recent_pain_parts.update(parts)
+
+    # 영구 부상과 최근 통증 합치기
+    all_pain_parts = list(injuries.union(recent_pain_parts))
+
     # Calculate current streak if not provided
     current_streak = request.streak
     if current_streak is None:
@@ -31,6 +56,7 @@ def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
     state = request.model_dump()
     state["experience_level"] = user.experience_level
     state["streak"] = current_streak
+    state["pain_parts"] = all_pain_parts # 프런트에서 보낸 것 대신 서버에서 계산한 값 사용
 
     candidates = generate_candidates(state, db)
     result = select_action_db(db, request.user_id, state, candidates)

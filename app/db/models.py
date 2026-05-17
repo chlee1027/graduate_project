@@ -67,6 +67,8 @@ class ExerciseLog(Base):
     actual_reps = Column(Integer, nullable=True)
     rpe = Column(Float, nullable=False)
     pain_occurred = Column(Boolean, default=False)
+    pain_parts = Column(Text, nullable=True)     # Comma separated
+    pain_severity = Column(String, nullable=True) # mild, severe
     user_feedback = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

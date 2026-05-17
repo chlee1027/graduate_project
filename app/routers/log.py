@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models import Recommendation, ExerciseLog
+from app.db.models import Recommendation, ExerciseLog, User
 from app.schemas.request_response import LogRequest
 from app.services.progression_service import check_user_progression
 
@@ -19,6 +19,8 @@ def save_log(request: LogRequest, db: Session = Depends(get_db)):
     if not recommendation:
         raise HTTPException(status_code=404, detail="Recommendation not found")
 
+    pain_parts_str = ",".join(request.pain_parts) if request.pain_parts else None
+
     log_item = ExerciseLog(
         recommendation_id=request.recommendation_id,
         user_id=request.user_id,
@@ -29,10 +31,21 @@ def save_log(request: LogRequest, db: Session = Depends(get_db)):
         actual_reps=request.actual_reps,
         rpe=request.rpe,
         pain_occurred=request.pain_occurred,
+        pain_parts=pain_parts_str,
+        pain_severity=request.pain_severity,
         user_feedback=request.user_feedback,
     )
 
     db.add(log_item)
+
+    # If severe pain, add to user injuries permanently
+    if request.pain_occurred and request.pain_severity == "severe" and request.pain_parts:
+        user = db.query(User).filter(User.user_id == request.user_id).first()
+        if user:
+            existing_injuries = set([p.strip() for p in (user.injuries or "").split(",") if p.strip()])
+            new_injuries = existing_injuries.union(set(request.pain_parts))
+            user.injuries = ",".join(new_injuries)
+
     db.commit()
     db.refresh(log_item)
 
@@ -53,6 +66,8 @@ def save_log(request: LogRequest, db: Session = Depends(get_db)):
             "actual_reps": log_item.actual_reps,
             "rpe": log_item.rpe,
             "pain_occurred": log_item.pain_occurred,
+            "pain_parts": log_item.pain_parts,
+            "pain_severity": log_item.pain_severity,
             "user_feedback": log_item.user_feedback,
         },
     }

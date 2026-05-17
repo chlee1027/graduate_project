@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Alert, Switch, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Alert, Switch, ActivityIndicator, Platform } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { useUserStore } from "../../src/store/userStore";
 import client from "../../src/api/client";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Animated, { FadeIn, FadeOut, Layout } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 
 type WorkoutPhase = "WORK" | "REST" | "FEEDBACK";
 
@@ -26,7 +26,27 @@ export default function WorkoutSession() {
   // Feedback State
   const [completed, setCompleted] = useState(true);
   const [rpe, setRpe] = useState(7);
+  
+  // Pain State
   const [pain, setPain] = useState(false);
+  const [selectedPainParts, setSelectedPainParts] = useState<string[]>([]);
+  const [painSeverity, setPainSeverity] = useState<"mild" | "severe">("mild");
+
+  const painPartsList = [
+    { id: "knee", label: "무릎" },
+    { id: "lower_back", label: "허리" },
+    { id: "shoulder", label: "어깨" },
+    { id: "wrist", label: "손목" },
+    { id: "ankle", label: "발목" },
+    { id: "neck", label: "목/경추" },
+    { id: "hip", label: "골반/고관절" },
+  ];
+
+  const togglePainPart = (partId: string) => {
+    setSelectedPainParts(prev => 
+      prev.includes(partId) ? prev.filter(p => p !== partId) : [...prev, partId]
+    );
+  };
 
   // 1. Work Timer Logic
   useEffect(() => {
@@ -47,7 +67,6 @@ export default function WorkoutSession() {
         setRestTimeLeft((prev) => {
           const next = prev > 0 ? prev - 1 : 0;
           if (next === 0) {
-            // 휴식 끝 -> 다음 세트 시작
             startNextSet();
           }
           return next;
@@ -67,8 +86,6 @@ export default function WorkoutSession() {
         
         const totalMinutes = data.selected_plan.minutes || 10;
         const totalSets = data.selected_plan.sets || 1;
-        
-        // 세트당 목표 시간 = 전체 시간 / 세트 수
         const targetPerSet = Math.ceil((totalMinutes * 60) / totalSets);
         
         setSetTargetSeconds(targetPerSet);
@@ -103,7 +120,7 @@ export default function WorkoutSession() {
     }
 
     if (currentSet < recommendation.selected_plan.sets) {
-      setRestTimeLeft(30); // 30초 휴식 (흐름 테스트를 위해 유지)
+      setRestTimeLeft(30); 
       setPhase("REST");
     } else {
       setPhase("FEEDBACK");
@@ -127,6 +144,8 @@ export default function WorkoutSession() {
         actual_sets: currentSet,
         rpe,
         pain_occurred: pain,
+        pain_parts: pain ? selectedPainParts : [],
+        pain_severity: pain ? painSeverity : null,
       });
 
       const rewardRes = await client.post("/api/reward/", {
@@ -160,7 +179,6 @@ export default function WorkoutSession() {
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
         
-        {/* Header */}
         <View className="mb-8">
           <Text className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
             {phase === "WORK" ? `SET ${currentSet} IN PROGRESS` : phase === "REST" ? "RESTING" : "SESSION COMPLETE"}
@@ -247,6 +265,55 @@ export default function WorkoutSession() {
                 </View>
                 <Switch value={pain} onValueChange={setPain} trackColor={{ false: "#d1d5db", true: "#ef4444" }} />
               </View>
+
+              {pain && (
+                <Animated.View entering={FadeIn} className="mt-8 pt-8 border-t border-blue-100">
+                  <Text className="text-blue-900 font-black text-base mb-4">어디가 아프신가요? (중복 선택 가능)</Text>
+                  <View className="flex-row flex-wrap mb-8">
+                    {painPartsList.map((part) => (
+                      <TouchableOpacity
+                        key={part.id}
+                        onPress={() => togglePainPart(part.id)}
+                        className={`px-4 py-2.5 rounded-full mr-2 mb-2 border ${
+                          selectedPainParts.includes(part.id) 
+                            ? "bg-blue-600 border-blue-600" 
+                            : "bg-white border-blue-100"
+                        }`}
+                      >
+                        <Text className={`font-bold text-xs ${
+                          selectedPainParts.includes(part.id) ? "text-white" : "text-blue-600"
+                        }`}>
+                          {part.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text className="text-blue-900 font-black text-base mb-4">통증의 정도는 어떤가요?</Text>
+                  <View className="flex-row space-x-3">
+                    <TouchableOpacity
+                      onPress={() => setPainSeverity("mild")}
+                      className={`flex-1 p-4 rounded-2xl border items-center ${
+                        painSeverity === "mild" ? "bg-blue-50 border-blue-400" : "bg-white border-gray-100"
+                      }`}
+                    >
+                      <Text className="text-xl mb-1">🧘</Text>
+                      <Text className={`font-black text-xs ${painSeverity === "mild" ? "text-blue-700" : "text-gray-400"}`}>약간의 뻐근함</Text>
+                      <Text className="text-[8px] text-gray-400 mt-1">7일간 조심하기</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setPainSeverity("severe")}
+                      className={`flex-1 p-4 rounded-2xl border items-center ${
+                        painSeverity === "severe" ? "bg-red-50 border-red-400" : "bg-white border-gray-100"
+                      }`}
+                    >
+                      <Text className="text-xl mb-1">🚨</Text>
+                      <Text className={`font-black text-xs ${painSeverity === "severe" ? "text-red-700" : "text-gray-400"}`}>심한 통증/부상</Text>
+                      <Text className="text-[8px] text-gray-400 mt-1">영구 제외 등록</Text>
+                    </TouchableOpacity>
+                  </View>
+                </Animated.View>
+              )}
             </View>
 
             <TouchableOpacity 

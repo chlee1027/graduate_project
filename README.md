@@ -50,7 +50,7 @@
 graduate_project/
 │
 ├─ app/                 # Backend (FastAPI)
-│  ├─ db/               # PostgreSQL Models & Seeding (seed_db.py)
+│  ├─ db/               # PostgreSQL Models
 │  ├─ routers/          # recommend, stats, log, reward, onboarding
 │  └─ services/         # candidate_generator, bandit_logic, streak_service
 │
@@ -58,9 +58,72 @@ graduate_project/
 │  ├─ app/              # Expo Router (workout/, stats/weekly.tsx)
 │  └─ src/              # components, api, store, services(notifications)
 │
+├─ scripts/             # Setup & Utility Scripts (Seeding, CSV generation)
 ├─ docs/                # Documentation & Excel Guides
 └─ README.md
 ```
+
+---
+
+## 🚀 시작하기 (Getting Started)
+
+### 📋 사전 준비 (Prerequisites)
+*   **Docker Desktop**: 데이터베이스(PostgreSQL) 실행을 위해 필요합니다.
+*   **Python 3.10+**: 백엔드 서버 실행을 위해 필요합니다.
+*   **Node.js & npm**: 프런트엔드(Expo) 실행을 위해 필요합니다.
+
+---
+
+### 1. 백엔드 설정 (Backend Setup)
+
+1.  **가상환경 생성 및 활성화**:
+    ```powershell
+    python -m venv venv
+    .\venv\Scripts\activate
+    ```
+2.  **의존성 설치**:
+    ```powershell
+    pip install -r requirements.txt
+    ```
+3.  **환경 변수 설정**:
+    *   `.env.example` 파일을 복사하여 `.env` 파일을 생성하고, 필요에 따라 DB 접속 정보를 수정합니다.
+4.  **데이터베이스 실행 (Docker)**:
+    ```powershell
+    docker-compose up -d
+    ```
+5.  **데이터베이스 초기화 (Seeding)**:
+    ```powershell
+    $env:PYTHONPATH = "."
+    python scripts/seed_db.py
+    ```
+6.  **서버 실행**:
+    ```powershell
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ```
+
+---
+
+### 2. 프런트엔드 설정 (Frontend Setup)
+
+1.  **경로 이동**:
+    ```powershell
+    cd frontend
+    ```
+2.  **의존성 설치**:
+    ```powershell
+    npm install --legacy-peer-deps
+    ```
+3.  **앱 실행**:
+    ```powershell
+    npx expo start -c
+    ```
+    *   터미널에 나타나는 QR 코드를 스마트폰의 **Expo Go** 앱으로 스캔하여 확인합니다.
+
+---
+
+### 💡 문제 해결 (Troubleshooting)
+*   **네트워크 오류**: 프런트엔드에서 백엔드로 접속이 안 될 경우, `frontend/src/api/client.ts` 파일에서 `BASE_URL`의 IP 주소가 본인 컴퓨터의 로컬 IP(IPv4)와 일치하는지 확인하세요.
+*   **DB 연결 실패**: Docker Desktop이 실행 중인지, 포트 5432가 이미 사용 중이지 않은지 확인하세요.
 
 ---
 

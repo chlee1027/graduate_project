@@ -55,6 +55,8 @@ class LogRequest(BaseModel):
     actual_reps: Optional[int] = None
     rpe: float = Field(..., ge=0.0, le=10.0)
     pain_occurred: bool = False
+    pain_parts: List[str] = []
+    pain_severity: Optional[Literal["mild", "severe"]] = None
     user_feedback: Optional[str] = None
 
 
