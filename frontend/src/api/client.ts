@@ -2,7 +2,7 @@ import axios from "axios";
 
 // [중요] 외부 접속(Tunnel) 모드 사용 시:
 // 백엔드 터널 주소 적용 (npx localtunnel --port 8000)
-const BASE_URL = "https://puny-hats-hug.loca.lt"; 
+const BASE_URL = "https://dirty-results-find.loca.lt"; 
 
 const client = axios.create({
   baseURL: BASE_URL,

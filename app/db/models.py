@@ -29,7 +29,8 @@ class ExercisePlan(Base):
     location = Column(String, nullable=False)  # home, gym
     type = Column(String, nullable=False)      # rep-based, time-based
     required_equipment = Column(Text, nullable=True)  # Comma separated
-    target_parts = Column(Text, nullable=False)       # Comma separated
+    target_parts = Column(Text, nullable=False)       # Comma separated (e.g., legs, chest)
+    sub_target_parts = Column(Text, nullable=True)   # Comma separated (e.g., quadriceps, upper_chest)
     avoid_if_pain = Column(Text, nullable=True)       # Comma separated
     intensity = Column(String, nullable=False) # low, medium, high
     minutes = Column(Integer, nullable=False)  # Total base minutes

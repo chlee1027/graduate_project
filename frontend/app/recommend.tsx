@@ -13,9 +13,11 @@ export default function Recommend() {
   const [recommendation, setRecommendation] = useState<any>(null);
   const [location, setLocation] = useState<"gym" | "home">("gym");
   const [wantStretching, setWantStretching] = useState(false);
+  const [showReason, setShowReason] = useState(false);
 
   const fetchRecommendation = async (currentLocation: "gym" | "home", stretching: boolean = false) => {
     setLoading(true);
+    setShowReason(false); // Reset reason visibility on new fetch
     try {
       const response = await client.post("/api/recommend/", {
         user_id: userId,
@@ -164,7 +166,7 @@ export default function Recommend() {
                 </View>
               </View>
               
-              <View className="flex-row mb-8">
+              <View className="flex-row mb-6">
                 <View className="mr-8">
                   <Text className="text-gray-400 text-[10px] font-bold uppercase mb-1">예상 시간</Text>
                   <Text className="text-gray-900 font-black text-lg">{recommendation.selected_plan.minutes}분</Text>
@@ -180,12 +182,30 @@ export default function Recommend() {
               {recommendation.selected_plan.video_url && (
                 <TouchableOpacity
                   onPress={() => Linking.openURL(recommendation.selected_plan.video_url)}
-                  className="bg-white/80 py-4 rounded-2xl flex-row items-center justify-center border border-white shadow-sm active:opacity-90"
+                  className="bg-white/80 py-3 rounded-2xl flex-row items-center justify-center border border-white shadow-sm mb-4 active:opacity-90"
                 >
-                  <Text style={{ color: theme.accent }} className="font-black text-sm">
-                    📺 가이드 영상 보기
+                  <Text style={{ color: theme.accent }} className="font-black text-[12px]">
+                    📺 운동 가이드 영상 보러가기
                   </Text>
                 </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                onPress={() => setShowReason(!showReason)}
+                className="flex-row items-center justify-center py-2"
+              >
+                <Text style={{ color: theme.accent }} className="font-bold text-[11px] mr-1">
+                  {showReason ? "💡 추천 이유 숨기기" : "💡 왜 이 운동을 추천하나요?"}
+                </Text>
+                <Ionicons name={showReason ? "chevron-up" : "chevron-down"} size={14} color={theme.accent} />
+              </TouchableOpacity>
+
+              {showReason && (
+                <View className="mt-3 p-4 bg-white/50 rounded-2xl border border-white/30">
+                  <Text style={{ color: theme.text }} className="text-xs font-bold leading-5">
+                    {recommendation.reason}
+                  </Text>
+                </View>
               )}
             </View>
 

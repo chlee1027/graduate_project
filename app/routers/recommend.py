@@ -61,6 +61,9 @@ def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
     candidates = generate_candidates(state, db)
     result = select_action_db(db, request.user_id, state, candidates)
     selected_plan = result["selected_plan"]
+    
+    # PT 코치 사유를 최우선으로, 없으면 알고리즘 사유(exploration/exploitation) 사용
+    final_reason = selected_plan.get("coach_reason") or result["reason"]
 
     recommendation_id = str(uuid4())
 
@@ -69,7 +72,7 @@ def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
         user_id=request.user_id,
         state_json=json.dumps(state, ensure_ascii=False),
         selected_plan_json=json.dumps(selected_plan, ensure_ascii=False),
-        reason=result["reason"],
+        reason=final_reason,
     )
 
     db.add(recommendation)
@@ -81,7 +84,7 @@ def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
         state=state,
         candidates=candidates,
         selected_plan=selected_plan,
-        reason=result["reason"],
+        reason=final_reason,
     )
 
 
