@@ -12,9 +12,11 @@ class Settings(BaseSettings):
     STREAK_COEF: float = 0.1
 
     DATABASE_URL: str = "postgresql://postgres:1234@localhost:5432/fitness_ai"
+    GEMINI_API_KEY: str = ""
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 
 settings = Settings()

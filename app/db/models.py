@@ -40,6 +40,8 @@ class ExercisePlan(Base):
     rest_seconds = Column(Integer, default=60)   # Recommended rest time
     met_value = Column(Float, default=3.0)       # Metabolic Equivalent of Task
     is_stretching = Column(Boolean, default=False)
+    description = Column(Text, nullable=True)     # Detailed explanation of the exercise
+    tip = Column(Text, nullable=True)             # PT coach tip or basic knowledge
     video_url = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

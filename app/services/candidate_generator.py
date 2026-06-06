@@ -43,6 +43,8 @@ def adjust_plan_by_experience(plan_obj: ExercisePlan, experience_level: str) -> 
         "rest_seconds": plan_obj.rest_seconds,
         "met_value": plan_obj.met_value,
         "is_stretching": plan_obj.is_stretching,
+        "description": plan_obj.description,
+        "tip": plan_obj.tip,
         "video_url": plan_obj.video_url
     }
 
@@ -100,6 +102,7 @@ def generate_candidates(state: Dict, db: Session) -> List[Dict]:
     fatigue = state["fatigue"]
     pain_parts = set(state["pain_parts"])
     experience_level = state["experience_level"]
+    user_goal = state.get("goal", "health") # 기본값 건강
     want_stretching = state.get("want_stretching", False)
 
     equipment_available = state.get("equipment_available", [])
@@ -172,7 +175,7 @@ def generate_candidates(state: Dict, db: Session) -> List[Dict]:
         
         priority_score = max_major_score + sub_bonus
         
-        # PT 코치 코멘트 생성 (간단 예시)
+        # --- PT 코치 코멘트 생성 (고급화) ---
         coach_reason = ""
         
         # 근육 이름 한글 매핑
@@ -186,14 +189,28 @@ def generate_candidates(state: Dict, db: Session) -> List[Dict]:
             "abs": "복근", "obliques": "외복사근(옆구리)"
         }
 
+        main_muscle_en = ex_sub_parts[0] if ex_sub_parts else (ex_major_parts[0] if ex_major_parts else "")
+        main_muscle_ko = muscle_ko.get(main_muscle_en, main_muscle_en)
+
+        # 1. 부위 불균형 해소형
         if sub_bonus >= 15:
-            muscle_en = ex_sub_parts[0] if ex_sub_parts else "해당 부위"
-            muscle_name = muscle_ko.get(muscle_en, muscle_en)
-            coach_reason = f"최근에 {muscle_name} 자극이 부족했네요. 균형을 위해 추천합니다!"
-        elif max_major_score >= 50:
-            major_en = ex_major_parts[0] if ex_major_parts else "해당"
-            major_name = muscle_ko.get(major_en, major_en)
-            coach_reason = f"오늘은 {major_name} 집중 훈련의 날입니다!"
+            coach_reason = f"최근 {main_muscle_ko} 운동이 부족하여 신체 밸런스가 깨질 수 있습니다. 이번 기회에 채워주는 것이 좋습니다."
+        
+        # 2. 목표 맞춤형
+        elif user_goal == "diet" and ex.intensity == "high":
+            coach_reason = f"체지방 연소를 목표로 하시기에 고강도 {main_muscle_ko} 훈련이 매우 효과적입니다."
+        elif user_goal == "muscle" and experience_level == "advanced":
+            coach_reason = f"근비대 성장을 위해 고중량 {main_muscle_ko} 타겟팅을 정교하게 진행할 차례입니다."
+        
+        # 3. 상태 맞춤형 (피로도/숙련도)
+        elif fatigue >= 3:
+            coach_reason = f"오늘 컨디션이 다소 낮으므로, 관절 부담이 적으면서도 {main_muscle_ko} 자극은 확실한 동작을 골랐습니다."
+        elif experience_level == "beginner":
+            coach_reason = f"운동 입문자분들께 가장 안전하면서도 {main_muscle_ko} 발달에 필수적인 기초 동작입니다."
+        
+        # 4. 기본 사유
+        if not coach_reason:
+            coach_reason = f"전체적인 루틴 흐름상 오늘은 {main_muscle_ko} 부위의 활성도가 높을 때입니다."
             
         adjusted_ex["priority_score"] = priority_score
         adjusted_ex["coach_reason"] = coach_reason

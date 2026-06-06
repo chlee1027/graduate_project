@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import onboarding, recommend, log, reward, user, debug, stats
+from app.routers import onboarding, recommend, log, reward, user, debug, stats, chatbot
 from app.db.database import Base, engine
 
 Base.metadata.create_all(bind=engine)
@@ -22,6 +22,7 @@ app.include_router(reward.router, prefix="/api/reward", tags=["reward"])
 app.include_router(user.router, prefix="/api/user", tags=["user"])
 app.include_router(debug.router, prefix="/api/debug", tags=["debug"])
 app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
+app.include_router(chatbot.router, prefix="/api/chatbot", tags=["chatbot"])
 
 
 @app.get("/")

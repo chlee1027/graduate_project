@@ -110,6 +110,16 @@ export default function Home() {
                   <Text className="text-white text-xl">✨</Text>
                 </View>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                className="bg-white p-5 rounded-3xl items-center shadow-sm mb-4 border border-blue-100 active:opacity-90"
+                onPress={() => router.push("/chat")}
+              >
+                <View className="flex-row items-center">
+                  <Text className="text-blue-600 font-extrabold text-lg mr-2">AI 코치에게 질문하기</Text>
+                  <Text className="text-blue-600 text-xl">💬</Text>
+                </View>
+              </TouchableOpacity>
               
               {userStatus && (
                 <View className="space-y-4">
