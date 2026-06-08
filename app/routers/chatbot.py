@@ -55,6 +55,10 @@ class ChatRequest(BaseModel):
     message: str
     user_id: str
 
+class ExerciseGuideRequest(BaseModel):
+    exercise_name: str
+    target_parts: str
+
 @router.post("/ask")
 async def ask_gemini(request: ChatRequest):
     if not model:
@@ -79,3 +83,45 @@ async def ask_gemini(request: ChatRequest):
     except Exception as e:
         print(f"Chat Execution Error: {e}")
         raise HTTPException(status_code=500, detail=f"AI 답변 생성 중 오류가 발생했습니다: {str(e)}")
+
+@router.post("/exercise-guide")
+async def get_exercise_guide(request: ExerciseGuideRequest):
+    if not model:
+        init_gemini()
+        if not model:
+            raise HTTPException(status_code=500, detail="AI Model not available.")
+
+    try:
+        prompt = f"""
+        당신은 전문 PT 코치입니다. 다음 운동에 대해 상세한 가이드를 작성해주세요.
+        운동 이름: {request.exercise_name}
+        주요 타겟 부위: {request.target_parts}
+
+        다음 형식을 지켜서 한국어로 답변하세요:
+        1. 운동 설명: (한 문장으로 핵심 설명)
+        2. 주요 효과: (어디에 효과적인지 구체적으로, 근성장/다이어트/체형교정 관점에서 설명)
+        3. 주의 사항: (부상 방지를 위한 핵심 팁 한가지)
+        4. 추천 유튜브 검색어: (유튜브에서 검색하기 좋은 키워드 하나)
+
+        이모지를 적절히 사용하여 친절하게 답변해주세요.
+        """
+        
+        response = model.generate_content(prompt)
+        text = response.text
+        
+        # 유튜브 검색어 추출 시도 (AI 답변에서 마지막 줄이나 특정 패턴 찾기)
+        import urllib.parse
+        search_query = request.exercise_name + " 가이드"
+        if "추천 유튜브 검색어:" in text:
+            search_query = text.split("추천 유튜브 검색어:")[-1].strip()
+        
+        youtube_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(search_query)}"
+
+        return {
+            "guide_text": text,
+            "youtube_url": youtube_url
+        }
+        
+    except Exception as e:
+        print(f"Guide Generation Error: {e}")
+        raise HTTPException(status_code=500, detail="AI 가이드를 생성하는 중 오류가 발생했습니다.")

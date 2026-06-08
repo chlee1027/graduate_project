@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking, Modal } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { useUserStore } from "../src/store/userStore";
 import client from "../src/api/client";
@@ -14,6 +14,11 @@ export default function Recommend() {
   const [location, setLocation] = useState<"gym" | "home">("gym");
   const [wantStretching, setWantStretching] = useState(false);
   const [showReason, setShowReason] = useState(false);
+
+  // AI Guide States
+  const [aiLoading, setAiLoading] = useState(false);
+  const [guideModalVisible, setGuideModalVisible] = useState(false);
+  const [aiGuide, setAiGuide] = useState<any>(null);
 
   const fetchRecommendation = async (currentLocation: "gym" | "home", stretching: boolean = false) => {
     setLoading(true);
@@ -36,6 +41,25 @@ export default function Recommend() {
       Alert.alert("오류", "추천을 불러오지 못했습니다. 서버 상태나 네트워크를 확인해주세요.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAiGuide = async () => {
+    if (!recommendation) return;
+    
+    setAiLoading(true);
+    try {
+      const response = await client.post("/api/chatbot/exercise-guide", {
+        exercise_name: recommendation.selected_plan.name,
+        target_parts: recommendation.selected_plan.target_parts
+      });
+      setAiGuide(response.data);
+      setGuideModalVisible(true);
+    } catch (error) {
+      console.error(error);
+      Alert.alert("오류", "AI 가이드를 불러오는 데 실패했습니다.");
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -179,6 +203,21 @@ export default function Recommend() {
                 </View>
               </View>
 
+              {/* AI 가이드 버튼 추가 */}
+              <TouchableOpacity
+                onPress={fetchAiGuide}
+                disabled={aiLoading}
+                className="bg-white py-3 rounded-2xl flex-row items-center justify-center border border-gray-100 shadow-sm mb-3 active:opacity-90"
+              >
+                {aiLoading ? (
+                  <ActivityIndicator size="small" color={theme.accent} />
+                ) : (
+                  <Text style={{ color: theme.accent }} className="font-black text-[12px]">
+                    ✨ AI 스마트 가이드 & 효과 보기
+                  </Text>
+                )}
+              </TouchableOpacity>
+
               {recommendation.selected_plan.video_url && (
                 <TouchableOpacity
                   onPress={() => Linking.openURL(recommendation.selected_plan.video_url)}
@@ -222,8 +261,11 @@ export default function Recommend() {
               style={{ backgroundColor: theme.button }}
               className="p-5 rounded-3xl items-center shadow-lg mb-4 active:opacity-90"
               onPress={() => router.push({
-                pathname: `/workout/${recommendation.selected_plan.plan_id}`,
-                params: { recommendation_id: recommendation.recommendation_id }
+                pathname: `/workout/[id]`,
+                params: { 
+                  id: recommendation.selected_plan.plan_id,
+                  recommendation_id: recommendation.recommendation_id 
+                }
               })}
             >
               <Text className="text-white font-black text-lg">운동 시작하기</Text>
@@ -251,6 +293,45 @@ export default function Recommend() {
           <Text className="text-blue-600 font-bold text-[10px]">다른 추천 받기 ↻</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* AI Guide Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={guideModalVisible}
+        onRequestClose={() => setGuideModalVisible(false)}
+      >
+        <View className="flex-1 justify-end bg-black/60">
+          <View className="bg-white rounded-t-[40px] p-8 h-[70%]">
+            <View className="flex-row justify-between items-center mb-6">
+              <Text className="text-2xl font-black text-gray-900">✨ AI 스마트 가이드</Text>
+              <TouchableOpacity onPress={() => setGuideModalVisible(false)}>
+                <Ionicons name="close-circle" size={32} color="#d1d5db" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View className="bg-blue-50 p-6 rounded-3xl border border-blue-100 mb-6">
+                <Text className="text-blue-900 text-base font-bold leading-7">
+                  {aiGuide?.guide_text}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => Linking.openURL(aiGuide?.youtube_url)}
+                className="bg-red-600 p-5 rounded-2xl flex-row items-center justify-center shadow-lg"
+              >
+                <Ionicons name="logo-youtube" size={24} color="white" style={{ marginRight: 8 }} />
+                <Text className="text-white font-black text-lg">유튜브에서 영상 보기</Text>
+              </TouchableOpacity>
+              
+              <Text className="text-gray-400 text-center text-[10px] font-bold mt-6">
+                AI PT 코치는 최신 정보를 바탕으로 분석하지만,{"\n"}수행 중 통증이 느껴지면 즉시 중단하세요!
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

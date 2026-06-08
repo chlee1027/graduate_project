@@ -78,12 +78,19 @@ export default function Onboarding() {
 
       const response = await client.post("/api/onboarding/", submissionForm);
       if (response.status === 200) {
-        // 알림 권한 요청 및 운동 알림 예약
-        const { registerForPushNotificationsAsync, scheduleWorkoutNotification } = require("../src/services/notificationService");
-        await registerForPushNotificationsAsync();
         
-        const [hour, minute] = form.workout_time.split(":").map(Number);
-        await scheduleWorkoutNotification(hour, minute);
+        // 알림 권한 요청 및 운동 알림 예약 (웹 환경 제외)
+        if (Platform.OS !== 'web') {
+          try {
+            const { registerForPushNotificationsAsync, scheduleWorkoutNotification } = require("../src/services/notificationService");
+            await registerForPushNotificationsAsync();
+            const [hour, minute] = form.workout_time.split(":").map(Number);
+            await scheduleWorkoutNotification(hour, minute);
+          } catch (notifError) {
+            console.log("Notification setup skipped or failed:", notifError);
+            // 알림 설정 실패해도 온보딩은 계속 진행되도록 함
+          }
+        }
 
         setUserId(form.user_id);
         setIsOnboarded(true);

@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import "../output.css";
 
 export default function Layout() {
   return (

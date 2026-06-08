@@ -147,14 +147,23 @@ export default function WorkoutSession() {
         streak: null,
       });
 
-      Alert.alert(
-        "수고하셨습니다!",
-        `총 ${formatTime(totalElapsedSeconds)} 동안 운동하셨네요.\n보상: ${rewardRes.data.reward.toFixed(2)}점`,
-        [{ text: "홈으로", onPress: () => router.replace("/") }]
-      );
+      if (Platform.OS === 'web') {
+        window.alert(`수고하셨습니다!\n총 ${formatTime(totalElapsedSeconds)} 동안 운동하셨네요.\n보상: ${rewardRes.data.reward.toFixed(2)}점`);
+        router.replace("/");
+      } else {
+        Alert.alert(
+          "수고하셨습니다!",
+          `총 ${formatTime(totalElapsedSeconds)} 동안 운동하셨네요.\n보상: ${rewardRes.data.reward.toFixed(2)}점`,
+          [{ text: "홈으로", onPress: () => router.replace("/") }]
+        );
+      }
     } catch (error) {
       console.error(error);
-      Alert.alert("오류", "기록 저장 중 문제가 발생했습니다.");
+      if (Platform.OS === 'web') {
+        window.alert("오류: 기록 저장 중 문제가 발생했습니다.");
+      } else {
+        Alert.alert("오류", "기록 저장 중 문제가 발생했습니다.");
+      }
     }
   };
 
