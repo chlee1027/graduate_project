@@ -18,10 +18,10 @@ export default function WorkoutSession() {
   const [phase, setPhase] = useState<WorkoutPhase>("WORK");
   
   // Timers
-  const [workTimeLeft, setWorkTimeLeft] = useState(0); 
+  const [elapsedSeconds, setElapsedSeconds] = useState(0); 
+  const [totalElapsedSeconds, setTotalElapsedSeconds] = useState(0);
   const [restTimeLeft, setRestTimeLeft] = useState(0);
   const [currentSet, setCurrentSet] = useState(1);
-  const [setTargetSeconds, setSetTargetSeconds] = useState(0);
 
   // Feedback State
   const [completed, setCompleted] = useState(true);
@@ -48,16 +48,16 @@ export default function WorkoutSession() {
     );
   };
 
-  // 1. Work Timer Logic
+  // 1. Stopwatch Logic (Work Phase)
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (phase === "WORK" && !loading && workTimeLeft > 0) {
+    if (phase === "WORK" && !loading) {
       interval = setInterval(() => {
-        setWorkTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+        setElapsedSeconds((prev) => prev + 1);
       }, 1000);
     }
     return () => { if (interval) clearInterval(interval); };
-  }, [phase, loading, workTimeLeft]);
+  }, [phase, loading]);
 
   // 2. Rest Timer Logic
   useEffect(() => {
@@ -83,13 +83,6 @@ export default function WorkoutSession() {
         const response = await client.get(`/api/recommend/${recommendation_id}`);
         const data = response.data;
         setRecommendation(data);
-        
-        const totalMinutes = data.selected_plan.minutes || 10;
-        const totalSets = data.selected_plan.sets || 1;
-        const targetPerSet = Math.ceil((totalMinutes * 60) / totalSets);
-        
-        setSetTargetSeconds(targetPerSet);
-        setWorkTimeLeft(targetPerSet);
         setLoading(false);
       } catch (error) {
         console.error(error);
@@ -103,7 +96,7 @@ export default function WorkoutSession() {
   const startNextSet = () => {
     if (currentSet < recommendation.selected_plan.sets) {
       setCurrentSet(currentSet + 1);
-      setWorkTimeLeft(setTargetSeconds);
+      setElapsedSeconds(0);
       setPhase("WORK");
     } else {
       setPhase("FEEDBACK");
@@ -111,16 +104,11 @@ export default function WorkoutSession() {
   };
 
   const handleSetComplete = () => {
-    const timeSpent = setTargetSeconds - workTimeLeft;
-    
-    // [테스트 모드 강제] 5초만 지나면 무조건 완료 가능하게 최우선 적용
-    if (timeSpent < 5) {
-      Alert.alert("조금만 더!", `[테스트] 최소 5초는 채워주세요. (${5 - timeSpent}초 남음)`);
-      return;
-    }
+    // 누적 시간 업데이트
+    setTotalElapsedSeconds(prev => prev + elapsedSeconds);
 
     if (currentSet < recommendation.selected_plan.sets) {
-      setRestTimeLeft(30); 
+      setRestTimeLeft(recommendation.selected_plan.rest_seconds || 60); 
       setPhase("REST");
     } else {
       setPhase("FEEDBACK");
@@ -135,12 +123,14 @@ export default function WorkoutSession() {
 
   const handleFinishWorkout = async () => {
     try {
+      const actualMinutes = Math.max(1, Math.round(totalElapsedSeconds / 60));
+      
       await client.post("/api/log/", {
         recommendation_id,
         user_id: userId,
         plan_id: id,
         completed,
-        actual_minutes: Math.max(1, Math.ceil((currentSet * setTargetSeconds) / 60)),
+        actual_minutes: actualMinutes,
         actual_sets: currentSet,
         rpe,
         pain_occurred: pain,
@@ -159,7 +149,7 @@ export default function WorkoutSession() {
 
       Alert.alert(
         "수고하셨습니다!",
-        `운동이 성공적으로 기록되었습니다.\n보상: ${rewardRes.data.reward.toFixed(2)}점`,
+        `총 ${formatTime(totalElapsedSeconds)} 동안 운동하셨네요.\n보상: ${rewardRes.data.reward.toFixed(2)}점`,
         [{ text: "홈으로", onPress: () => router.replace("/") }]
       );
     } catch (error) {
@@ -188,14 +178,22 @@ export default function WorkoutSession() {
 
         {phase === "WORK" && (
           <Animated.View key="work-phase" entering={FadeIn} exiting={FadeOut} className="items-center">
-            <View className="w-64 h-64 rounded-full border-8 border-blue-100 items-center justify-center mb-10 bg-blue-50 shadow-sm">
-              <Text className="text-6xl font-black text-blue-600 mb-1">{formatTime(workTimeLeft)}</Text>
-              <Text className="text-blue-400 font-bold text-xs uppercase">Keep Going!</Text>
+            {/* 오늘의 운동 목표 가이드 추가 */}
+            <View className="bg-blue-50 w-full p-4 rounded-2xl mb-6 border border-blue-100 items-center">
+              <Text className="text-blue-800 font-black text-lg mb-1">🎯 오늘의 목표</Text>
+              <Text className="text-blue-600 font-bold">
+                {recommendation.selected_plan.sets}세트 × {recommendation.selected_plan.reps}{recommendation.selected_plan.type === "rep-based" ? "회" : "초"}
+              </Text>
+            </View>
+
+            <View className="w-64 h-64 rounded-full border-8 border-blue-600 items-center justify-center mb-10 bg-white shadow-xl">
+              <Text className="text-6xl font-black text-blue-600 mb-1">{formatTime(elapsedSeconds)}</Text>
+              <Text className="text-gray-400 font-bold text-xs uppercase">Elapsed Time</Text>
             </View>
 
             <View className="bg-gray-50 w-full p-8 rounded-[40px] mb-6 items-center border border-gray-100">
               <Text className="text-5xl font-black text-gray-900 mb-2">{currentSet} <Text className="text-xl text-gray-400">/ {recommendation.selected_plan.sets}</Text></Text>
-              <Text className="text-gray-500 font-bold text-sm mb-6">현재 세트를 수행 중입니다</Text>
+              <Text className="text-gray-500 font-bold text-sm mb-6">현재 세트 진행 중</Text>
               
               <TouchableOpacity
                 onPress={handleSetComplete}

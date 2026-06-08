@@ -27,7 +27,7 @@ class RecommendRequest(BaseModel):
     user_id: str
     location: Literal["home", "gym"]
     available_minutes: int = Field(..., ge=5, le=120)
-    fatigue: int = Field(..., ge=0, le=4)
+    fatigue: int = Field(..., ge=0, le=5)
     sleep_hours: float = Field(..., ge=0, le=24)
     pain_parts: List[str] = []
     equipment_available: List[str] = []

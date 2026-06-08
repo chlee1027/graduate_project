@@ -55,6 +55,7 @@ def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
 
     state = request.model_dump()
     state["experience_level"] = user.experience_level
+    state["goal"] = user.goal
     state["streak"] = current_streak
     state["pain_parts"] = all_pain_parts # 프런트에서 보낸 것 대신 서버에서 계산한 값 사용
 

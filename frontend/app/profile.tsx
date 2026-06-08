@@ -12,18 +12,21 @@ export default function Profile() {
   
   const [userData, setUserDetails] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
+  const [weeklyDetails, setWeeklyDetails] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
 
   const fetchData = async () => {
     try {
-      const [userRes, statsRes] = await Promise.all([
+      const [userRes, statsRes, detailsRes] = await Promise.all([
         client.get(`/api/user/${userId}`),
-        client.get(`/api/stats/${userId}/summary`)
+        client.get(`/api/stats/${userId}/summary`),
+        client.get(`/api/stats/${userId}/weekly-details`)
       ]);
       setUserDetails(userRes.data);
       setStats(statsRes.data);
+      setWeeklyDetails(detailsRes.data);
       setEditForm({
         age: userRes.data.age.toString(),
         height_cm: userRes.data.height_cm.toString(),
@@ -127,13 +130,17 @@ export default function Profile() {
 
           {/* Stats Section (Moved from Home) */}
           <View className="flex-row justify-between mb-8">
-            <View className="bg-gray-50 w-[48%] p-6 rounded-[32px] border border-gray-100 items-center">
+            <View className="bg-gray-50 w-[31%] p-4 rounded-[32px] border border-gray-100 items-center">
               <Text className="text-gray-400 text-[10px] font-bold uppercase mb-1">누적 시간</Text>
-              <Text className="text-2xl font-black text-gray-900">{stats?.total_workout_minutes || 0}분</Text>
+              <Text className="text-xl font-black text-gray-900">{stats?.total_workout_minutes || 0}분</Text>
             </View>
-            <View className="bg-gray-50 w-[48%] p-6 rounded-[32px] border border-gray-100 items-center">
+            <View className="bg-gray-50 w-[31%] p-4 rounded-[32px] border border-gray-100 items-center">
               <Text className="text-gray-400 text-[10px] font-bold uppercase mb-1">완료 세션</Text>
-              <Text className="text-2xl font-black text-gray-900">{stats?.total_completed_workouts || 0}회</Text>
+              <Text className="text-xl font-black text-gray-900">{stats?.total_completed_workouts || 0}회</Text>
+            </View>
+            <View className="bg-orange-50 w-[31%] p-4 rounded-[32px] border border-orange-100 items-center">
+              <Text className="text-orange-400 text-[10px] font-bold uppercase mb-1">소모 칼로리</Text>
+              <Text className="text-xl font-black text-orange-600">{stats?.total_calories || 0}kcal</Text>
             </View>
           </View>
 
@@ -182,6 +189,33 @@ export default function Profile() {
               </View>
             ) : (
               <Text className="text-red-400 text-xs font-bold">현재 등록된 부상 정보가 없습니다. 아주 건강하시네요!</Text>
+            )}
+          </View>
+
+          {/* Exercise History Section (NEW) */}
+          <View className="bg-white border border-gray-100 rounded-[40px] p-8 shadow-sm mb-8">
+            <Text className="text-lg font-black text-gray-900 mb-6">최근 운동 기록 📜</Text>
+            {weeklyDetails.length > 0 ? (
+              <View className="space-y-4">
+                {weeklyDetails.map((item, index) => (
+                  <View key={item.log_id || index} className="flex-row items-center justify-between py-3 border-b border-gray-50">
+                    <View className="flex-1">
+                      <Text className="text-gray-900 font-black text-base">{item.plan_name}</Text>
+                      <Text className="text-gray-400 text-[10px] font-bold">
+                        {item.date} • {item.location === 'gym' ? '헬스장' : '집'}
+                      </Text>
+                    </View>
+                    <View className="items-end">
+                      <Text className="text-blue-600 font-black text-lg">{item.minutes}분</Text>
+                      <Text className="text-gray-400 text-[8px] font-bold">{item.calories} kcal</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View className="items-center py-4">
+                <Text className="text-gray-400 font-bold text-xs text-center">아직 이번 주 운동 기록이 없네요.{"\n"}첫 운동을 시작해볼까요?</Text>
+              </View>
             )}
           </View>
         </View>

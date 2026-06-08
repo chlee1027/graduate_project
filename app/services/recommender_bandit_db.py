@@ -36,8 +36,8 @@ def select_action_db(db: Session, user_id: str, state: Dict, candidates: List[Di
         plan_id = candidate["plan_id"]
         avg_reward = get_user_plan_avg_reward(db, user_id, plan_id)
         
-        # 기본 점수는 과거 보상 평균 + 부위 우선순위 점수(0.1단위 가중치)
-        priority_boost = candidate.get("priority_score", 0) * 0.1
+        # 기본 점수는 과거 보상 평균 + 부위 우선순위 점수(0.01단위 가중치로 조정하여 보상값 영향력 강화)
+        priority_boost = candidate.get("priority_score", 0) * 0.01
         score = avg_reward + priority_boost
 
         if state["fatigue"] >= 3 and candidate["intensity"] == "low":
