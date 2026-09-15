@@ -3,7 +3,8 @@ import copy
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.models import ExercisePlan, ExerciseLog
-from datetime import datetime, timedelta
+from app.core.timezone import now_kst
+from datetime import timedelta
 
 # 근육 이름 한글 매핑 및 부상 간접 영향권 정의
 MUSCLE_KO_MAP = {
@@ -101,7 +102,7 @@ def get_detailed_usage_stats(user_id: str, db: Session) -> Dict[str, Dict[str, i
     """
     최근 7일간 운동 로그를 분석하여, 대분류(target_parts) 및 소분류(sub_target_parts)별 수행 횟수를 반환합니다.
     """
-    seven_days_ago = datetime.now() - timedelta(days=7)
+    seven_days_ago = now_kst() - timedelta(days=7)
     recent_logs = (
         db.query(ExercisePlan.target_parts, ExercisePlan.sub_target_parts)
         .join(ExerciseLog, ExerciseLog.plan_id == ExercisePlan.plan_id)
@@ -230,7 +231,7 @@ def generate_candidates(state: Dict, db: Session) -> List[Dict]:
             coach_reason = f"최근 일주일간 {main_muscle_ko} 부위 운동량이 거의 없었습니다. 신체 균형을 위해 오늘 꼭 수행하시길 권장합니다."
         
         # 4. 목표 및 숙련도 맞춤
-        elif user_goal == "diet":
+        elif user_goal == "weight_loss":
             coach_reason = f"체지방 연소 효율이 높은 {main_muscle_ko} 복합 운동입니다. 다이어트 목표 달성에 효과적입니다."
         elif experience_level == "advanced":
             coach_reason = f"상급자 수준에 맞춰 높은 자극을 줄 수 있는 {main_muscle_ko} 타겟팅 루틴입니다."
@@ -256,7 +257,15 @@ def generate_candidates(state: Dict, db: Session) -> List[Dict]:
             "minutes": min(available_minutes, 10),
             "sets": 1,
             "reps": 1,
+            "target_rpe": 3,
+            "rest_seconds": 60,
+            # seed 에 없는 운동이라 로그 저장 때 exercise_plans 에 만들어 넣는다.
+            # 통계의 칼로리 계산이 met_value 를 곱하므로 값을 비워 두지 않는다.
+            "met_value": 3.0,
             "is_stretching": True,
+            "description": "가볍게 걷거나 몸을 풀어 주는 회복 위주의 움직임입니다.",
+            "tip": "숨이 차지 않는 속도로 움직이세요.",
+            "video_url": None,
             "priority_score": -100,
             "coach_reason": "현재 컨디션과 부상 상태를 고려하여 무리하지 않는 선에서 가벼운 움직임을 추천해요."
         })

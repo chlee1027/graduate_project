@@ -10,7 +10,9 @@ from app.schemas.request_response import RecommendRequest, RecommendResponse
 from app.services.candidate_generator import generate_candidates
 from app.services.recommender_bandit_db import select_action_db
 from app.services.streak_service import get_current_streak
-from datetime import datetime, timedelta
+from app.core.list_field import parse_list_field
+from app.core.timezone import now_kst
+from datetime import timedelta
 
 router = APIRouter()
 
@@ -25,10 +27,11 @@ def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
         )
 
     # 1. 영구 부상 리스트 (User model)
-    injuries = set([p.strip() for p in (user.injuries or "").split(",") if p.strip()])
+    injuries = set(parse_list_field(user.injuries))
 
     # 2. 최근 7일간 보고된 통증 부위 (ExerciseLog) - Dynamic blacklisting
-    seven_days_ago = datetime.now() - timedelta(days=7)
+    # tz 정보가 붙은 시각이라야 timestamptz 인 created_at 과 어긋나지 않는다.
+    seven_days_ago = now_kst() - timedelta(days=7)
     recent_pain_logs = (
         db.query(ExerciseLog.pain_parts)
         .filter(

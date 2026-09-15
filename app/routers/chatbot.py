@@ -1,3 +1,6 @@
+import re
+import urllib.parse
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import google.generativeai as genai
@@ -50,6 +53,35 @@ def init_gemini():
         model = None
 
 init_gemini()
+
+def extract_search_query(text: str, fallback: str) -> str:
+    """AI 답변에서 유튜브 검색어 한 줄만 뽑는다.
+
+    답변이 마크다운이라 마커 뒤에 별표와 백틱, 이모지, 괄호 설명이 줄줄이 붙어 온다.
+    마커 뒤를 통째로 쓰면 유튜브가 답변 전체를 검색해 결과가 엉뚱해진다.
+
+        **4. 추천 유튜브 검색어:**
+        `맨몸 스쿼트 정석 자세` (정확한 자극점을 찾기 위해 ...)
+
+    여기서 원하는 것은 백틱 안의 한 줄이다.
+    """
+    marker = "추천 유튜브 검색어"
+    if marker not in text:
+        return fallback
+
+    tail = text.split(marker, 1)[1].lstrip(" :*`\n")
+    first_block = tail.split("\n\n")[0]
+
+    quoted = re.search(r"`([^`]+)`", first_block)
+    candidate = quoted.group(1) if quoted else first_block.split("\n")[0]
+
+    candidate = re.sub(r"[(（][^)）]*[)）]", " ", candidate)   # 괄호 설명을 뗀다
+    # 이모지와 마크다운 기호를 턴다. 한글과 숫자는 isalnum 으로 살아남는다.
+    candidate = "".join(ch for ch in candidate if ch.isalnum() or ch.isspace() or ch in "-+")
+    candidate = " ".join(candidate.split())
+
+    return candidate or fallback
+
 
 class ChatRequest(BaseModel):
     message: str
@@ -109,11 +141,7 @@ async def get_exercise_guide(request: ExerciseGuideRequest):
         response = model.generate_content(prompt)
         text = response.text
         
-        # 유튜브 검색어 추출 시도 (AI 답변에서 마지막 줄이나 특정 패턴 찾기)
-        import urllib.parse
-        search_query = request.exercise_name + " 가이드"
-        if "추천 유튜브 검색어:" in text:
-            search_query = text.split("추천 유튜브 검색어:")[-1].strip()
+        search_query = extract_search_query(text, request.exercise_name + " 가이드")
         
         youtube_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(search_query)}"
 

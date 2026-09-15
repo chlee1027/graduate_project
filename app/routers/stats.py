@@ -1,12 +1,23 @@
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
+
+from app.core.timezone import KST, kst_date, today_kst
 from app.db.database import get_db
-from app.db.models import ExerciseLog, User
+from app.db.models import ExerciseLog, ExercisePlan, User
 from app.services.streak_service import get_current_streak
 
 router = APIRouter()
+
+
+def _workout_type(is_stretching: bool, location: str) -> str:
+    """하루의 운동 성격을 한 낱말로 정한다. 홈 화면 주간 활동의 칸 색과 같은 값이다."""
+    if is_stretching:
+        return "stretch"
+    return "gym" if location == "gym" else "home"
+
 
 @router.get("/{user_id}/summary")
 def get_user_stats_summary(user_id: str, db: Session = Depends(get_db)):
@@ -18,8 +29,6 @@ def get_user_stats_summary(user_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
 
     # 1. 전체 통계 계산 (기록된 로그와 플랜의 MET 값을 조인하여 칼로리 계산)
-    from app.db.models import ExercisePlan
-    
     total_stats_query = (
         db.query(
             func.count(ExerciseLog.log_id).label("total_count"),
@@ -31,12 +40,11 @@ def get_user_stats_summary(user_id: str, db: Session = Depends(get_db)):
         .first()
     )
 
-    # 2. 주간 활동 현황 (최근 7일)
-    today = datetime.now().date()
+    # 2. 주간 활동 현황 (최근 7일, 한국 날짜 기준)
+    today = today_kst()
     seven_days_ago = today - timedelta(days=6)
-    
-    # KST 기준 날짜별 운동 정보 조회
-    date_expr = func.date(func.timezone('Asia/Seoul', func.timezone('UTC', ExerciseLog.created_at)))
+
+    date_expr = kst_date(ExerciseLog.created_at)
     weekly_logs = (
         db.query(
             date_expr.label("workout_date"),
@@ -56,25 +64,29 @@ def get_user_stats_summary(user_id: str, db: Session = Depends(get_db)):
         .all()
     )
 
-    workout_map = {}
-    completed_days_count = 0
+    # 하루에 여러 번 운동할 수 있으므로 날짜별로 먼저 모은다.
+    # 근력 운동이 하나라도 있으면 그날은 운동한 날로 세고, 칸 색도 근력 쪽을 따른다.
+    # (스트레칭을 먼저 했다는 이유로 그날 한 근력 운동이 빠지지 않게 한다)
+    daily = {}
     weekly_calories = 0.0
 
     for log in weekly_logs:
-        # 일일 운동 타입 결정 (마지막 기록 기준)
-        w_type = "home"
-        if log.is_stretching:
-            w_type = "stretch"
-        elif log.location == "gym":
-            w_type = "gym"
-        
-        if log.workout_date not in workout_map:
-            if not log.is_stretching:
-                completed_days_count += 1
-            workout_map[log.workout_date] = w_type
-        
-        # 주간 누적 칼로리 계산
+        day = daily.setdefault(log.workout_date, {"has_workout": False, "has_gym": False})
+        if not log.is_stretching:
+            day["has_workout"] = True
+            if log.location == "gym":
+                day["has_gym"] = True
+
         weekly_calories += (log.met_value * 3.5 * user.weight_kg / 200 * log.actual_minutes)
+
+    workout_map = {}
+    for day_date, day in daily.items():
+        if day["has_workout"]:
+            workout_map[day_date] = "gym" if day["has_gym"] else "home"
+        else:
+            workout_map[day_date] = "stretch"
+
+    completed_days_count = sum(1 for day in daily.values() if day["has_workout"])
 
     activity_chart = []
     for i in range(7):
@@ -99,6 +111,7 @@ def get_user_stats_summary(user_id: str, db: Session = Depends(get_db)):
         "activity_chart": activity_chart
     }
 
+
 @router.get("/{user_id}/weekly-details")
 def get_weekly_workout_details(user_id: str, db: Session = Depends(get_db)):
     """
@@ -108,17 +121,16 @@ def get_weekly_workout_details(user_id: str, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    today = datetime.now().date()
+    today = today_kst()
     seven_days_ago = today - timedelta(days=6)
-    
-    from app.db.models import ExercisePlan
+
     logs = (
         db.query(ExerciseLog, ExercisePlan)
         .join(ExercisePlan, ExerciseLog.plan_id == ExercisePlan.plan_id)
         .filter(
             ExerciseLog.user_id == user_id,
             ExerciseLog.completed == True,
-            func.date(func.timezone('Asia/Seoul', func.timezone('UTC', ExerciseLog.created_at))) >= seven_days_ago
+            kst_date(ExerciseLog.created_at) >= seven_days_ago
         )
         .order_by(ExerciseLog.created_at.desc())
         .all()
@@ -127,14 +139,16 @@ def get_weekly_workout_details(user_id: str, db: Session = Depends(get_db)):
     result = []
     for log, plan in logs:
         calories = (plan.met_value * 3.5 * user.weight_kg / 200 * log.actual_minutes)
+        # 화면에 보이는 날짜와 시각도 한국 시간으로 맞춘다.
+        logged_at = log.created_at.astimezone(KST)
         result.append({
             "log_id": log.log_id,
             "plan_name": plan.name,
             "minutes": log.actual_minutes,
             "sets": log.actual_sets,
             "calories": round(calories, 1),
-            "date": log.created_at.strftime("%Y-%m-%d"),
-            "time": log.created_at.strftime("%H:%M"),
+            "date": logged_at.strftime("%Y-%m-%d"),
+            "time": logged_at.strftime("%H:%M"),
             "location": plan.location,
             "is_stretching": plan.is_stretching
         })

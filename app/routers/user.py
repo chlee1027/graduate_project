@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from app.core.list_field import parse_list_field
 from app.db.database import get_db
 from app.db.models import User
 from app.services.streak_service import get_current_streak
@@ -39,10 +40,10 @@ def get_user_details(user_id: str, db: Session = Depends(get_db)):
         weight_kg=user.weight_kg,
         goal=user.goal,
         experience_level=user.experience_level,
-        injuries=[p.strip() for p in (user.injuries or "").split(",") if p.strip()],
+        injuries=parse_list_field(user.injuries),
         weekly_available_days=user.weekly_available_days,
         place_preference=user.place_preference,
-        equipment=[p.strip() for p in (user.equipment or "").split(",") if p.strip()],
+        equipment=parse_list_field(user.equipment),
         created_at=user.created_at
     )
 

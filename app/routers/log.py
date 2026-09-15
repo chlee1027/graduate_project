@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
@@ -5,6 +7,8 @@ from app.db.database import get_db
 from app.db.models import Recommendation, ExerciseLog, User
 from app.schemas.request_response import LogRequest
 from app.services.progression_service import check_user_progression
+from app.services.plan_registry import ensure_plan_exists
+from app.core.list_field import dump_list_field, parse_list_field
 
 router = APIRouter()
 
@@ -18,6 +22,12 @@ def save_log(request: LogRequest, db: Session = Depends(get_db)):
     )
     if not recommendation:
         raise HTTPException(status_code=404, detail="Recommendation not found")
+
+    # 대체 운동처럼 seed 에 없는 plan 이 추천될 수 있다. 그대로 넣으면
+    # ExerciseLog.plan_id 외래키가 걸려 저장이 통째로 깨진다.
+    selected_plan = json.loads(recommendation.selected_plan_json or "{}")
+    if selected_plan.get("plan_id") == request.plan_id:
+        ensure_plan_exists(db, selected_plan)
 
     pain_parts_str = ",".join(request.pain_parts) if request.pain_parts else None
 
@@ -42,9 +52,8 @@ def save_log(request: LogRequest, db: Session = Depends(get_db)):
     if request.pain_occurred and request.pain_severity == "severe" and request.pain_parts:
         user = db.query(User).filter(User.user_id == request.user_id).first()
         if user:
-            existing_injuries = set([p.strip() for p in (user.injuries or "").split(",") if p.strip()])
-            new_injuries = existing_injuries.union(set(request.pain_parts))
-            user.injuries = ",".join(new_injuries)
+            existing_injuries = parse_list_field(user.injuries)
+            user.injuries = dump_list_field(existing_injuries + list(request.pain_parts))
 
     db.commit()
     db.refresh(log_item)

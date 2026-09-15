@@ -1,8 +1,7 @@
-import json
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.list_field import dump_list_field
 from app.db.database import get_db
 from app.db.models import User
 from app.schemas.request_response import OnboardingRequest, OnboardingResponse
@@ -27,10 +26,10 @@ def onboarding(request: OnboardingRequest, db: Session = Depends(get_db)):
         existing_user.weight_kg = request.weight_kg
         existing_user.goal = request.goal
         existing_user.experience_level = request.experience_level
-        existing_user.injuries = json.dumps(request.injuries, ensure_ascii=False)
+        existing_user.injuries = dump_list_field(request.injuries)
         existing_user.weekly_available_days = request.weekly_available_days
         existing_user.place_preference = request.place_preference
-        existing_user.equipment = json.dumps(request.equipment, ensure_ascii=False)
+        existing_user.equipment = dump_list_field(request.equipment)
     else:
         user = User(
             user_id=request.user_id,
@@ -40,10 +39,10 @@ def onboarding(request: OnboardingRequest, db: Session = Depends(get_db)):
             weight_kg=request.weight_kg,
             goal=request.goal,
             experience_level=request.experience_level,
-            injuries=json.dumps(request.injuries, ensure_ascii=False),
+            injuries=dump_list_field(request.injuries),
             weekly_available_days=request.weekly_available_days,
             place_preference=request.place_preference,
-            equipment=json.dumps(request.equipment, ensure_ascii=False),
+            equipment=dump_list_field(request.equipment),
         )
         db.add(user)
 
