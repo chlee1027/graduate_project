@@ -13,7 +13,15 @@ MUSCLE_KO_MAP = {
     "upper_chest": "상부 가슴", "middle_chest": "중부 가슴", "lower_chest": "하부 가슴",
     "lats": "광배근(옆구리쪽 등)", "traps": "승모근", "lower_back": "기립근(허리)",
     "biceps": "이두(알통)", "triceps": "삼두(팔 뒤)", "forearms": "전완근(팔둑)",
-    "abs": "복근", "obliques": "외복사근(옆구리)", "full_body": "전신"
+    "abs": "복근", "obliques": "외복사근(옆구리)", "full_body": "전신",
+    "front_deltoid": "전면 삼각근", "side_deltoid": "측면 삼각근", "rear_deltoid": "후면 삼각근",
+    "middle_back": "등 가운데", "cardio": "유산소", "shoulder": "어깨"
+}
+
+# 통증·부상 부위(관절) 이름. MUSCLE_KO_MAP 의 lower_back 은 근육(기립근) 이름이라 따로 둔다.
+JOINT_KO_MAP = {
+    "knee": "무릎", "lower_back": "허리", "shoulder": "어깨", "wrist": "손목", "ankle": "발목",
+    "elbow": "팔꿈치", "neck": "목", "hip": "골반",
 }
 
 # 통증 부위별 간접적으로 영향을 받는 부위 (해당 부위 운동 시 주의 필요)
@@ -212,25 +220,29 @@ def build_candidates(plans: Iterable[Dict], state: Dict, usage_stats: Dict[str, 
 
         # 1. 통증/부상 고려 사유 (최우선)
         if indirect_penalty > 0:
-            relevant_pains = [MUSCLE_KO_MAP.get(p, p) for p in pain_parts if ex_target_parts[0] in PAIN_INDIRECT_IMPACT_MAP.get(p, [])]
-            coach_reason = f"현재 {', '.join(relevant_pains)} 부위의 통증을 고려하여, 해당 부위에 무리가 덜 가도록 강도를 조절한 {main_muscle_ko} 운동입니다."
+            # 감점과 같은 규칙(운동의 모든 대상 부위)으로 어떤 통증 때문인지 고른다
+            relevant_pains = sorted(
+                JOINT_KO_MAP.get(p, p) for p in pain_parts
+                if set(ex_target_parts) & set(PAIN_INDIRECT_IMPACT_MAP.get(p, []))
+            )
+            coach_reason = f"{', '.join(relevant_pains)} 쪽이 불편한 점을 고려해, 그 부위에 무리가 덜 가는 {main_muscle_ko} 운동을 골랐어요."
         
         # 2. 피로도 고려 사유
         elif fatigue >= 4:
-            coach_reason = f"오늘은 피로도가 높으시네요. 평소보다 세트수와 강도를 낮춰 {main_muscle_ko} 근육을 가볍게 자극하는 방향으로 구성했습니다."
+            coach_reason = f"피로도가 높아 평소보다 세트와 강도를 낮춘 {main_muscle_ko} 운동을 골랐어요."
         
         # 3. 불균형 해소 사유
         elif sub_bonus >= 20:
-            coach_reason = f"최근 일주일간 {main_muscle_ko} 부위 운동량이 거의 없었습니다. 신체 균형을 위해 오늘 꼭 수행하시길 권장합니다."
+            coach_reason = f"최근 7일 동안 {main_muscle_ko} 운동을 하지 않아서 골랐어요."
         
         # 4. 목표 및 숙련도 맞춤
         elif user_goal == "weight_loss":
-            coach_reason = f"체지방 연소 효율이 높은 {main_muscle_ko} 복합 운동입니다. 다이어트 목표 달성에 효과적입니다."
+            coach_reason = f"체중 감량 목표에 맞춰 {main_muscle_ko} 운동을 골랐어요."
         elif experience_level == "advanced":
-            coach_reason = f"상급자 수준에 맞춰 높은 자극을 줄 수 있는 {main_muscle_ko} 타겟팅 루틴입니다."
+            coach_reason = f"상급 숙련도에 맞춰 {main_muscle_ko} 운동을 골랐어요."
         
         if not coach_reason:
-            coach_reason = f"전체적인 루틴 밸런스를 고려할 때 오늘은 {main_muscle_ko} 운동을 하기에 최적의 타이밍입니다."
+            coach_reason = f"최근 운동한 부위를 보고 {main_muscle_ko} 운동을 골랐어요."
             
         adjusted_ex["priority_score"] = priority_score
         adjusted_ex["coach_reason"] = coach_reason
@@ -260,7 +272,7 @@ def build_candidates(plans: Iterable[Dict], state: Dict, usage_stats: Dict[str, 
             "tip": "숨이 차지 않는 속도로 움직이세요.",
             "video_url": None,
             "priority_score": -100,
-            "coach_reason": "현재 컨디션과 부상 상태를 고려하여 무리하지 않는 선에서 가벼운 움직임을 추천해요."
+            "coach_reason": "조건에 맞는 운동이 없어 가벼운 걷기와 스트레칭을 골랐어요."
         })
 
     candidates.sort(key=lambda x: x.get("priority_score", 0), reverse=True)

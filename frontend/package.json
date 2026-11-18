@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "css": "tailwindcss -i ./global.css -o ./output.css"
   },
   "dependencies": {
     "@react-native-community/datetimepicker": "8.4.4",

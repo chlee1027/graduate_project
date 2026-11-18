@@ -1,216 +1,142 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
-import { useRouter, Stack } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { Text, TouchableOpacity, View } from "react-native";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useUserStore } from "../src/store/userStore";
 import client from "../src/api/client";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Button, Card, colors, Screen, Section, Stat } from "../src/ui";
 
-import { Ionicons } from "@expo/vector-icons";
+const DAY_TONE: Record<string, string> = {
+  gym: colors.brand,
+  home: colors.brand,
+  stretch: "#A7C8B9",
+};
 
 export default function Home() {
   const { userId, isOnboarded } = useUserStore();
   const router = useRouter();
-  const [userStatus, setUserStatus] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<any>(null);
 
-  const fetchStatus = async () => {
-    if (userId && isOnboarded) {
-      setLoading(true);
-      try {
-        const response = await client.get(`/api/stats/${userId}/summary`);
-        setUserStatus(response.data);
-      } catch (error) {
-        console.error("Failed to fetch user status:", error);
-      } finally {
-        setLoading(false);
-      }
+  const fetchStatus = useCallback(async () => {
+    if (!userId || !isOnboarded) return;
+    try {
+      const response = await client.get(`/api/stats/${userId}/summary`);
+      setStatus(response.data);
+    } catch (error) {
+      console.error("Failed to fetch user status:", error);
     }
-  };
-
-  useEffect(() => {
-    fetchStatus();
   }, [userId, isOnboarded]);
 
-  const mockYesterday = async () => {
-    if (!userId) return;
-    try {
-      await client.post(`/api/debug/mock-yesterday/${userId}`);
-      alert("가짜 운동 기록이 생성되었습니다!");
-      fetchStatus(); 
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  // 운동을 마치고 돌아오면 숫자를 다시 읽는다
+  useFocusEffect(
+    useCallback(() => {
+      fetchStatus();
+    }, [fetchStatus])
+  );
 
-  return (
-    <SafeAreaView className="flex-1 bg-white" edges={['top']}>
-      <Stack.Screen options={{ 
-        title: "Fitness AI", 
-        headerShown: true,
-        headerStyle: { backgroundColor: '#2563eb' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: "900", fontSize: 20 },
-        headerShadowVisible: false,
-        headerRight: () => (
-          <TouchableOpacity 
-            onPress={() => router.push("/profile")}
-            className="mr-5"
-            activeOpacity={0.7}
-          >
-            <Ionicons name="person-circle-outline" size={32} color="#fff" />
-          </TouchableOpacity>
-        )
-      }} />
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="p-6 pt-2">
-          {isOnboarded && (
-            <View className="mb-6 bg-blue-600 p-8 rounded-[40px] shadow-xl relative overflow-hidden">
-              {/* Background Decorative Circles */}
-              <View className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full" />
-              <View className="absolute -bottom-20 -left-10 w-32 h-32 bg-white/5 rounded-full" />
-
-              <View className="flex-row justify-between items-center relative z-10">
-                <View className="flex-1 mr-4">
-                  <Text className="text-white text-xl font-black mb-1">안녕하세요! 👋</Text>
-                  <Text className="text-blue-100 text-xs font-bold leading-tight">오늘도 건강한 하루를 만들어볼까요?</Text>
-                </View>
-
-                <View className="bg-white/20 px-4 py-3 rounded-[24px] border border-white/30 items-center justify-center min-w-[80px]">
-                  <Text className="text-2xl mb-0.5">🔥</Text>
-                  <Text className="text-white font-black text-base leading-tight">
-                    {userStatus?.current_streak || 0}일째
-                  </Text>
-                  <Text className="text-blue-100 text-[8px] font-bold uppercase tracking-widest">
-                    STREAK
-                  </Text>
-                </View>
+  if (!isOnboarded) {
+    return (
+      <Screen edges={["top", "bottom"]} footer={<Button label="시작하기" onPress={() => router.push("/onboarding")} />}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View className="pt-16">
+          <Text className="text-[13px] font-semibold text-brand mb-3">Fitness AI</Text>
+          <Text className="text-[30px] leading-10 font-bold text-ink">오늘 컨디션에 맞는{"\n"}운동 하나</Text>
+          <Text className="text-[15px] leading-6 text-zinc-500 mt-4">
+            몸 상태와 남은 시간을 알려 주면 운동을 하나 골라 드려요. 끝나고 남긴 기록으로 다음 추천이 달라집니다.
+          </Text>
+        </View>
+        <View className="mt-12">
+          {[
+            ["기본 정보 입력", "숙련도, 장소, 주의할 부위"],
+            ["오늘 컨디션 선택", "피로도와 운동할 수 있는 시간"],
+            ["운동하고 기록", "완료 여부, 힘든 정도, 통증"],
+          ].map(([t, d], i) => (
+            <View key={t} className="flex-row py-3.5 border-b border-line">
+              <Text className="w-7 text-[15px] font-semibold text-zinc-400">{i + 1}</Text>
+              <View className="flex-1">
+                <Text className="text-[15px] font-semibold text-ink">{t}</Text>
+                <Text className="text-[13px] text-zinc-500 mt-0.5">{d}</Text>
               </View>
             </View>
-          )}
-
-          {!isOnboarded ? (
-            <View className="flex-1 justify-center py-20">
-              <Text className="text-4xl font-black text-gray-900 mb-2 text-center">반가워요! ✨</Text>
-              <Text className="text-gray-400 mb-10 text-center">당신만을 위한 맞춤 운동 파트너,{"\n"}코치와 함께 시작해볼까요?</Text>
-              <TouchableOpacity
-                className="bg-blue-600 p-6 rounded-[32px] items-center shadow-lg active:opacity-90"
-                onPress={() => router.push("/onboarding")}
-              >
-                <Text className="text-white font-extrabold text-xl">코치 시작하기 🚀</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View className="space-y-4">
-              <TouchableOpacity
-                className="bg-gray-900 p-5 rounded-3xl items-center shadow-lg mb-2 active:opacity-90"
-                onPress={() => router.push("/recommend")}
-              >
-                <View className="flex-row items-center">
-                  <Text className="text-white font-extrabold text-lg mr-2">오늘의 운동 추천받기</Text>
-                  <Text className="text-white text-xl">✨</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="bg-white p-5 rounded-3xl items-center shadow-sm mb-4 border border-blue-100 active:opacity-90"
-                onPress={() => router.push("/chat")}
-              >
-                <View className="flex-row items-center">
-                  <Text className="text-blue-600 font-extrabold text-lg mr-2">AI 코치에게 질문하기</Text>
-                  <Text className="text-blue-600 text-xl">💬</Text>
-                </View>
-              </TouchableOpacity>
-              
-              {userStatus && (
-                <View className="space-y-4">
-                  {/* Weekly Goal Progress */}
-                  <View className="bg-blue-50 p-6 rounded-[32px] border border-blue-100 shadow-sm mb-2">
-                    <View className="flex-row justify-between items-end mb-4">
-                      <View>
-                        <Text className="font-black text-blue-900 text-lg">주간 목표 달성도</Text>
-                        <Text className="text-blue-600 font-bold text-xs uppercase mt-0.5">
-                          {userStatus.completed_days_this_week >= userStatus.weekly_goal 
-                            ? "🎉 목표 달성! 대단해요!" 
-                            : `이번 주 ${userStatus.weekly_goal}회 중 ${userStatus.completed_days_this_week}회 완료`}
-                        </Text>
-                      </View>
-                      <Text className="text-blue-900 font-black text-2xl">
-                        {Math.min(100, Math.round((userStatus.completed_days_this_week / userStatus.weekly_goal) * 100))}%
-                      </Text>
-                    </View>
-                    <View className="h-4 bg-white rounded-full overflow-hidden border border-blue-100">
-                      <View 
-                        style={{ width: `${Math.min(100, (userStatus.completed_days_this_week / userStatus.weekly_goal) * 100)}%` }}
-                        className="h-full bg-blue-600 rounded-full"
-                      />
-                    </View>
-                    {userStatus.completed_days_this_week >= userStatus.weekly_goal && (
-                      <View className="mt-4 bg-white/60 p-3 rounded-2xl items-center">
-                        <Text className="text-blue-800 font-black text-xs">이번 주 목표를 모두 달성했습니다! 🏆</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Weekly Activity Chart */}
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() => router.push("/stats/weekly")}
-                    className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm"
-                  >
-                    <View className="flex-row justify-between items-center mb-5">
-                      <Text className="font-black text-gray-800 text-lg">주간 활동</Text>
-                      <View className="bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
-                        <Text className="text-gray-400 text-[10px] font-black uppercase">자세히 보기 ❯</Text>
-                      </View>
-                    </View>
-                    <View className="flex-row justify-between items-center px-1">
-                      {userStatus.activity_chart.map((day: any) => (
-                        <View key={day.date} className="items-center">
-                          <View 
-                            style={{ 
-                              backgroundColor: 
-                                day.type === 'gym' ? '#2563eb' : // blue-600
-                                day.type === 'home' ? '#8b5cf6' : // purple-500
-                                day.type === 'stretch' ? '#10b981' : // emerald-500
-                                '#f9fafb' // gray-50
-                            }}
-                            className={`w-10 h-10 rounded-2xl items-center justify-center mb-2 shadow-sm ${
-                              day.completed ? "" : "border border-gray-100"
-                            }`}
-                          >
-                            <Text className="text-[14px]">
-                              {day.type === 'gym' ? '🏋️' : 
-                               day.type === 'home' ? '🏠' : 
-                               day.type === 'stretch' ? '🧘' : ''}
-                            </Text>
-                          </View>
-                          <Text className={`text-[10px] font-bold ${day.completed ? "text-gray-800" : "text-gray-400"}`}>
-                            {day.day_name}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                    <View className="flex-row justify-center mt-6 space-x-6">
-                      <View className="flex-row items-center"><View className="w-3 h-3 rounded-full bg-blue-600 mr-2"/><Text className="text-[10px] font-bold text-gray-500">헬스</Text></View>
-                      <View className="flex-row items-center ml-4"><View className="w-3 h-3 rounded-full bg-purple-500 mr-2"/><Text className="text-[10px] font-bold text-gray-500">홈트</Text></View>
-                      <View className="flex-row items-center ml-4"><View className="w-3 h-3 rounded-full bg-emerald-500 mr-2"/><Text className="text-[10px] font-bold text-gray-500">회복</Text></View>
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* DEBUG BUTTON - REMOVE IN PRODUCTION */}
-              <TouchableOpacity 
-                onPress={mockYesterday}
-                className="mt-6 p-4 border border-red-100 rounded-2xl border-dashed items-center"
-              >
-                <Text className="text-red-300 text-[10px] font-bold">🛠️ [테스트용] 스트릭 1일 늘리기</Text>
-                <Text className="text-red-200 text-[8px] mt-1">누를 때마다 연속 운동일수가 1일씩 증가합니다.</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          ))}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </Screen>
+    );
+  }
+
+  const done = status?.completed_days_this_week ?? 0;
+  const goal = status?.weekly_goal ?? 0;
+  const pct = goal ? Math.min(100, Math.round((done / goal) * 100)) : 0;
+
+  return (
+    <Screen>
+      <Stack.Screen
+        options={{
+          title: "",
+          headerShown: true,
+          // 온보딩에서 넘어오면 앞 화면이 스택에 남으므로, 홈에서는 뒤로 가기를 감춘다
+          headerBackVisible: false,
+          headerLeft: () => null,
+          gestureEnabled: false,
+          headerRight: () => (
+            <TouchableOpacity onPress={() => router.push("/profile")} className="mr-4" accessibilityLabel="내 정보">
+              <Ionicons name="person-circle-outline" size={26} color={colors.ink} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
+      <Text className="text-[24px] leading-8 font-bold text-ink mb-6">오늘의 운동</Text>
+
+      <Card>
+        <View className="flex-row">
+          <Stat label="연속 운동" value={status?.current_streak ?? 0} unit="일" />
+          <Stat label="이번 주" value={`${done}/${goal}`} unit="회" />
+          <Stat label="달성" value={pct} unit="%" />
+        </View>
+        <View className="h-1.5 bg-canvas rounded-full mt-4 overflow-hidden">
+          <View style={{ width: `${pct}%`, backgroundColor: colors.brand }} className="h-full rounded-full" />
+        </View>
+      </Card>
+
+      <View className="mt-4">
+        <Button label="오늘 운동 추천받기" onPress={() => router.push("/recommend")} />
+        <View className="h-2" />
+        <Button label="코치에게 질문하기" variant="secondary" onPress={() => router.push("/chat")} />
+      </View>
+
+      {status?.activity_chart ? (
+        <Section
+          label="최근 7일"
+          right={
+            <TouchableOpacity onPress={() => router.push("/stats/weekly")}>
+              <Text className="text-[13px] text-zinc-500">기록 보기</Text>
+            </TouchableOpacity>
+          }
+          style={{ marginTop: 32 }}
+        >
+          <View className="flex-row justify-between">
+            {status.activity_chart.map((day: any) => (
+              <View key={day.date} className="items-center">
+                <View
+                  style={{ backgroundColor: day.completed ? DAY_TONE[day.type] || colors.brand : colors.canvas }}
+                  className="w-9 h-9 rounded-lg"
+                />
+                <Text className={`text-[12px] mt-1.5 ${day.completed ? "text-ink font-semibold" : "text-zinc-400"}`}>{day.day_name}</Text>
+              </View>
+            ))}
+          </View>
+          <View className="flex-row mt-4">
+            <View className="flex-row items-center mr-4">
+              <View style={{ backgroundColor: colors.brand }} className="w-2.5 h-2.5 rounded-sm mr-1.5" />
+              <Text className="text-[12px] text-zinc-500">운동</Text>
+            </View>
+            <View className="flex-row items-center">
+              <View style={{ backgroundColor: DAY_TONE.stretch }} className="w-2.5 h-2.5 rounded-sm mr-1.5" />
+              <Text className="text-[12px] text-zinc-500">스트레칭</Text>
+            </View>
+          </View>
+        </Section>
+      ) : null}
+    </Screen>
   );
 }

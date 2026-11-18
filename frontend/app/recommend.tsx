@@ -1,50 +1,41 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking, Modal } from "react-native";
-import { useRouter, Stack } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Linking, Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Stack, useRouter } from "expo-router";
 import { useUserStore } from "../src/store/userStore";
 import client from "../src/api/client";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { errorMessage, notify } from "../src/utils/dialog";
+import { Button, Card, colors, PlainText, Screen, Section, Segmented } from "../src/ui";
 
-// 오늘 컨디션 입력. 추천 엔진은 피로도와 가용 시간을 보고 고른다(docs/simulation_eval.md).
-const FATIGUE_LEVELS = [
-  { value: 0, label: "0", hint: "개운함" },
-  { value: 1, label: "1", hint: "가뿐함" },
-  { value: 2, label: "2", hint: "보통" },
-  { value: 3, label: "3", hint: "조금 지침" },
-  { value: 4, label: "4", hint: "많이 지침" },
-  { value: 5, label: "5", hint: "녹초" },
+// 추천 엔진은 피로도와 가용 시간을 보고 고른다(docs/simulation_eval.md).
+const FATIGUE = [
+  { value: 0, hint: "아주 가뿐해요" },
+  { value: 1, hint: "가뿐해요" },
+  { value: 2, hint: "보통이에요" },
+  { value: 3, hint: "조금 지쳤어요" },
+  { value: 4, hint: "많이 지쳤어요" },
+  { value: 5, hint: "쉬어야 할 것 같아요" },
 ];
-const MINUTE_OPTIONS = [10, 15, 20, 30, 45, 60];
+const MINUTES = [10, 15, 20, 30, 45, 60];
+const INTENSITY: Record<string, string> = { low: "저강도", medium: "중강도", high: "고강도" };
 
-type Conditions = {
-  location: "gym" | "home";
-  stretching: boolean;
-  fatigue: number;
-  minutes: number;
-};
+type Conditions = { location: "gym" | "home"; stretching: boolean; fatigue: number; minutes: number };
 
 export default function Recommend() {
   const router = useRouter();
   const { userId } = useUserStore();
   const [loading, setLoading] = useState(true);
-  const [recommendation, setRecommendation] = useState<any>(null);
+  const [rec, setRec] = useState<any>(null);
   const [location, setLocation] = useState<"gym" | "home">("gym");
-  const [wantStretching, setWantStretching] = useState(false);
-  const [showReason, setShowReason] = useState(false);
+  const [stretching, setStretching] = useState(false);
   const [fatigue, setFatigue] = useState(2);
   const [minutes, setMinutes] = useState(30);
-
-  // AI Guide States
-  const [aiLoading, setAiLoading] = useState(false);
-  const [guideModalVisible, setGuideModalVisible] = useState(false);
-  const [aiGuide, setAiGuide] = useState<any>(null);
+  const [guide, setGuide] = useState<any>(null);
+  const [guideLoading, setGuideLoading] = useState(false);
 
   // 바뀐 값만 넘기면 나머지는 지금 화면 값을 쓴다(상태 갱신 전에 불러도 새 값이 들어가도록).
   const fetchRecommendation = async (changes: Partial<Conditions> = {}) => {
-    const c: Conditions = { location, stretching: wantStretching, fatigue, minutes, ...changes };
+    const c: Conditions = { location, stretching, fatigue, minutes, ...changes };
     setLoading(true);
-    setShowReason(false); // Reset reason visibility on new fetch
     try {
       // 최근 순응도·평균 RPE·스트릭은 서버가 기록으로 계산한다.
       const response = await client.post("/api/recommend/", {
@@ -54,31 +45,29 @@ export default function Recommend() {
         fatigue: c.fatigue,
         want_stretching: c.stretching,
       });
-      setRecommendation(response.data);
+      setRec(response.data);
     } catch (error) {
       console.error(error);
-      Alert.alert("오류", "추천을 불러오지 못했습니다. 서버 상태나 네트워크를 확인해주세요.");
+      notify("추천을 불러오지 못했어요", errorMessage(error, "잠시 뒤에 다시 시도해 주세요."));
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchAiGuide = async () => {
-    if (!recommendation) return;
-    
-    setAiLoading(true);
+  const openGuide = async () => {
+    if (!rec) return;
+    setGuideLoading(true);
     try {
       const response = await client.post("/api/chatbot/exercise-guide", {
-        exercise_name: recommendation.selected_plan.name,
-        target_parts: recommendation.selected_plan.target_parts
+        exercise_name: rec.selected_plan.name,
+        target_parts: rec.selected_plan.target_parts,
       });
-      setAiGuide(response.data);
-      setGuideModalVisible(true);
+      setGuide(response.data);
     } catch (error) {
       console.error(error);
-      Alert.alert("오류", "AI 가이드를 불러오는 데 실패했습니다.");
+      notify("가이드를 불러오지 못했어요", errorMessage(error, "잠시 뒤에 다시 시도해 주세요."));
     } finally {
-      setAiLoading(false);
+      setGuideLoading(false);
     }
   };
 
@@ -86,312 +75,133 @@ export default function Recommend() {
     if (userId) {
       fetchRecommendation();
     } else {
-      setLoading(false);
-      Alert.alert("오류", "사용자 정보가 없습니다. 온보딩을 먼저 진행해주세요.");
       router.replace("/onboarding");
     }
   }, [userId]);
 
-  const handleLocationChange = (newLoc: "gym" | "home") => {
-    setLocation(newLoc);
-    fetchRecommendation({ location: newLoc });
-  };
-
-  const toggleStretching = () => {
-    const nextValue = !wantStretching;
-    setWantStretching(nextValue);
-    fetchRecommendation({ stretching: nextValue });
-  };
-
-  if (loading) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text className="mt-4 text-gray-500">
-          AI가 {wantStretching ? "회복" : location === "gym" ? "헬스장" : "홈트"} 맞춤 플랜을 찾고 있습니다...
-        </Text>
-      </View>
-    );
-  }
-
-  const getThemeColors = () => {
-    if (wantStretching) {
-      return {
-        bg: '#f0fdf4', // emerald-50
-        border: '#dcfce7', // emerald-100
-        accent: '#059669', // emerald-600
-        text: '#064e3b', // emerald-900
-        button: '#10b981', // emerald-500
-        label: "액티브 레스트"
-      };
-    }
-
-    const intensity = recommendation.selected_plan.intensity;
-    if (location === 'gym') {
-      // 헬스장: 파란색 계열
-      if (intensity === 'low') {
-        return { bg: '#eff6ff', border: '#dbeafe', accent: '#3b82f6', text: '#1e3a8a', button: '#3b82f6', label: "오늘의 플랜" };
-      } else if (intensity === 'medium') {
-        return { bg: '#dbeafe', border: '#bfdbfe', accent: '#2563eb', text: '#1e3a8a', button: '#2563eb', label: "오늘의 플랜" };
-      } else { // high
-        return { bg: '#bfdbfe', border: '#93c5fd', accent: '#1d4ed8', text: '#1e3a8a', button: '#1d4ed8', label: "오늘의 플랜" };
-      }
-    } else {
-      // 홈트: 연두/초록색 계열
-      if (intensity === 'low') {
-        return { bg: '#f7fee7', border: '#ecfccb', accent: '#65a30d', text: '#365314', button: '#84cc16', label: "오늘의 플랜" };
-      } else if (intensity === 'medium') {
-        return { bg: '#ecfccb', border: '#d9f99d', accent: '#4d7c0f', text: '#365314', button: '#65a30d', label: "오늘의 플랜" };
-      } else { // high
-        return { bg: '#d9f99d', border: '#bef264', accent: '#3f6212', text: '#1a2e05', button: '#4d7c0f', label: "오늘의 플랜" };
-      }
-    }
-  };
-
-  const theme = recommendation ? getThemeColors() : null;
+  const plan = rec?.selected_plan;
+  const amount = plan ? (plan.type === "time-based" ? `${plan.sets}세트` : `${plan.sets}세트 × ${plan.reps}회`) : "";
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <Stack.Screen options={{ 
-        title: "오늘의 추천", 
-        headerShown: true,
-        headerStyle: { backgroundColor: '#2563eb' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: "900", fontSize: 18 },
-        headerShadowVisible: false,
-        headerLeft: () => (
-          <TouchableOpacity 
-            onPress={() => router.back()} 
-            className="ml-3 w-10 h-10 items-center justify-center rounded-full active:opacity-60"
-          >
-            <Ionicons name="chevron-back" size={28} color="#fff" style={{ marginLeft: -3 }} />
-          </TouchableOpacity>
-        )
-      }} />
-      <ScrollView className="p-6 pt-4" showsVerticalScrollIndicator={false}>
-        <View className="mb-8">
-          <Text className="text-3xl font-black text-gray-900">오늘의 추천</Text>
-          <Text className="text-gray-400 font-bold text-xs uppercase mt-1">당신에게 가장 적합한 루틴을 제안합니다</Text>
-        </View>
+    <Screen
+      footer={
+        plan ? (
+          <Button
+            label="운동 시작"
+            disabled={loading}
+            onPress={() =>
+              router.push({ pathname: `/workout/[id]`, params: { id: plan.plan_id, recommendation_id: rec.recommendation_id } })
+            }
+          />
+        ) : null
+      }
+    >
+      <Stack.Screen options={{ title: "오늘의 추천" }} />
 
-        <View className="flex-row bg-gray-100 p-1.5 rounded-3xl mb-8">
-          <TouchableOpacity
-            onPress={() => handleLocationChange("gym")}
-            className={`flex-1 py-3 rounded-2xl items-center ${location === "gym" ? "bg-white shadow-sm" : ""}`}
-          >
-            <Text className={`font-black text-xs ${location === "gym" ? "text-blue-600" : "text-gray-400"}`}>🏋️ 헬스장</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => handleLocationChange("home")}
-            className={`flex-1 py-3 rounded-2xl items-center ${location === "home" ? "bg-white shadow-sm" : ""}`}
-          >
-            <Text className={`font-black text-xs ${location === "home" ? "text-blue-600" : "text-gray-400"}`}>🏠 홈트</Text>
-          </TouchableOpacity>
-        </View>
+      <Section label="장소">
+        <Segmented
+          options={[{ label: "헬스장", value: "gym" }, { label: "집", value: "home" }]}
+          value={location}
+          onChange={(v) => {
+            setLocation(v as "gym" | "home");
+            fetchRecommendation({ location: v as "gym" | "home" });
+          }}
+        />
+      </Section>
 
-        <View className="bg-gray-50 p-5 rounded-3xl border border-gray-100 mb-8">
-          <Text className="text-gray-900 font-black text-sm mb-1">오늘 컨디션</Text>
-          <Text className="text-gray-400 text-[10px] font-bold mb-4">바꾸면 추천을 다시 받아요</Text>
+      <Section label="지금 피로도" right={<Text className="text-[13px] text-ink font-semibold">{FATIGUE[fatigue].hint}</Text>}>
+        <Segmented
+          options={FATIGUE.map((f) => ({ label: String(f.value), value: f.value }))}
+          value={fatigue}
+          onChange={(v) => {
+            setFatigue(v);
+            fetchRecommendation({ fatigue: v });
+          }}
+        />
+      </Section>
 
-          <Text className="text-gray-500 text-[11px] font-bold mb-2">
-            피로도 {fatigue} · {FATIGUE_LEVELS[fatigue].hint}
-          </Text>
-          <View className="flex-row mb-4">
-            {FATIGUE_LEVELS.map((f) => (
-              <TouchableOpacity
-                key={f.value}
-                accessibilityLabel={`피로도 ${f.value} ${f.hint}`}
-                onPress={() => {
-                  setFatigue(f.value);
-                  fetchRecommendation({ fatigue: f.value });
-                }}
-                className={`flex-1 py-2 mx-0.5 rounded-xl items-center ${fatigue === f.value ? "bg-blue-600" : "bg-white border border-gray-200"}`}
-              >
-                <Text className={`font-black text-xs ${fatigue === f.value ? "text-white" : "text-gray-500"}`}>{f.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+      <Section label="운동할 수 있는 시간" right={<Text className="text-[13px] text-ink font-semibold">{minutes}분</Text>}>
+        <Segmented
+          options={MINUTES.map((m) => ({ label: String(m), value: m }))}
+          value={minutes}
+          onChange={(v) => {
+            setMinutes(v);
+            fetchRecommendation({ minutes: v });
+          }}
+        />
+      </Section>
 
-          <Text className="text-gray-500 text-[11px] font-bold mb-2">운동할 수 있는 시간 {minutes}분</Text>
-          <View className="flex-row">
-            {MINUTE_OPTIONS.map((m) => (
-              <TouchableOpacity
-                key={m}
-                accessibilityLabel={`${m}분`}
-                onPress={() => {
-                  setMinutes(m);
-                  fetchRecommendation({ minutes: m });
-                }}
-                className={`flex-1 py-2 mx-0.5 rounded-xl items-center ${minutes === m ? "bg-blue-600" : "bg-white border border-gray-200"}`}
-              >
-                <Text className={`font-black text-xs ${minutes === m ? "text-white" : "text-gray-500"}`}>{m}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {recommendation && theme ? (
-          <>
-            <View 
-              style={{ backgroundColor: theme.bg, borderColor: theme.border }}
-              className="p-8 rounded-[40px] border mb-8"
-            >
-              <View className="flex-row justify-between items-start mb-6">
-                <View>
-                  <Text style={{ color: theme.accent }} className="text-[10px] font-black uppercase tracking-widest mb-1">
-                    {theme.label}
-                  </Text>
-                  <Text style={{ color: theme.text }} className="text-2xl font-black">
-                    {recommendation.selected_plan.name}
-                  </Text>
-                </View>
-                <View style={{ backgroundColor: theme.accent }} className="px-3 py-1 rounded-full">
-                  <Text className="text-white font-bold text-[10px]">{recommendation.selected_plan.intensity.toUpperCase()}</Text>
-                </View>
-              </View>
-              
-              <View className="flex-row mb-6">
-                <View className="mr-8">
-                  <Text className="text-gray-400 text-[10px] font-bold uppercase mb-1">예상 시간</Text>
-                  <Text className="text-gray-900 font-black text-lg">{recommendation.selected_plan.minutes}분</Text>
-                </View>
-                <View>
-                  <Text className="text-gray-400 text-[10px] font-bold uppercase mb-1">{recommendation.selected_plan.type === 'time-based' ? '유형' : '세트/횟수'}</Text>
-                  <Text className="text-gray-900 font-black text-lg">
-                    {recommendation.selected_plan.type === 'time-based' ? '지속 수행' : `${recommendation.selected_plan.sets}세트 × ${recommendation.selected_plan.reps}회`}
-                  </Text>
-                </View>
-              </View>
-
-              {/* AI 가이드 버튼 추가 */}
-              <TouchableOpacity
-                onPress={fetchAiGuide}
-                disabled={aiLoading}
-                className="bg-white py-3 rounded-2xl flex-row items-center justify-center border border-gray-100 shadow-sm mb-3 active:opacity-90"
-              >
-                {aiLoading ? (
-                  <ActivityIndicator size="small" color={theme.accent} />
-                ) : (
-                  <Text style={{ color: theme.accent }} className="font-black text-[12px]">
-                    ✨ AI 스마트 가이드 & 효과 보기
-                  </Text>
-                )}
-              </TouchableOpacity>
-
-              {recommendation.selected_plan.video_url && (
-                <TouchableOpacity
-                  onPress={() => Linking.openURL(recommendation.selected_plan.video_url)}
-                  className="bg-white/80 py-3 rounded-2xl flex-row items-center justify-center border border-white shadow-sm mb-4 active:opacity-90"
-                >
-                  <Text style={{ color: theme.accent }} className="font-black text-[12px]">
-                    📺 운동 가이드 영상 보러가기
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                onPress={() => setShowReason(!showReason)}
-                className="flex-row items-center justify-center py-2"
-              >
-                <Text style={{ color: theme.accent }} className="font-bold text-[11px] mr-1">
-                  {showReason ? "💡 추천 이유 숨기기" : "💡 왜 이 운동을 추천하나요?"}
-                </Text>
-                <Ionicons name={showReason ? "chevron-up" : "chevron-down"} size={14} color={theme.accent} />
-              </TouchableOpacity>
-
-              {showReason && (
-                <View className="mt-3 p-4 bg-white/50 rounded-2xl border border-white/30">
-                  <Text style={{ color: theme.text }} className="text-xs font-bold leading-5">
-                    {recommendation.reason}
-                  </Text>
-                </View>
-              )}
+      <Section label={stretching ? "회복용 스트레칭" : "추천 운동"} style={{ marginTop: 8 }}>
+        <Card>
+          {loading || !plan ? (
+            <View className="h-36 items-center justify-center">
+              {loading ? <ActivityIndicator color={colors.ink} /> : <Text className="text-zinc-500">추천 결과가 없어요.</Text>}
             </View>
-
-            {wantStretching && (
-              <View className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 mb-6 flex-row items-center">
-                <Text className="text-xl mr-3">💡</Text>
-                <Text className="text-emerald-800 text-[10px] font-bold flex-1">
-                  스트레칭은 '회복 세션'입니다.{"\n"}성실한 운동 데이터 축적을 위해 주간 목표 횟수에는 포함되지 않아요!
-                </Text>
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={{ backgroundColor: theme.button }}
-              className="p-5 rounded-3xl items-center shadow-lg mb-4 active:opacity-90"
-              onPress={() => router.push({
-                pathname: `/workout/[id]`,
-                params: { 
-                  id: recommendation.selected_plan.plan_id,
-                  recommendation_id: recommendation.recommendation_id 
-                }
-              })}
-            >
-              <Text className="text-white font-black text-lg">운동 시작하기</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={toggleStretching}
-              className="py-4 items-center mb-4"
-            >
-              <Text className={`font-black text-xs ${wantStretching ? "text-blue-600" : "text-gray-400"}`}>
-                {wantStretching ? "↻ 원래 추천 플랜으로 돌아가기" : "오늘은 좀 몸이 무거워요... (스트레칭) 🧘"}
+          ) : (
+            <View>
+              <Text className="text-[22px] leading-8 font-bold text-ink">{plan.name}</Text>
+              <Text className="text-[14px] text-zinc-500 mt-1">
+                {INTENSITY[plan.intensity] || plan.intensity} · {plan.minutes}분 · {amount}
               </Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <View className="p-10 items-center">
-            <Text className="text-gray-400">추천 결과가 없습니다.</Text>
-          </View>
-        )}
-        
-        <TouchableOpacity
-          className="p-4 items-center bg-gray-50 rounded-2xl mx-10 border border-gray-100"
-          onPress={() => fetchRecommendation()}
-        >
-          <Text className="text-blue-600 font-bold text-[10px]">다른 추천 받기 ↻</Text>
+              {rec.reason ? (
+                <View className="mt-4 pt-4 border-t border-line">
+                  <Text className="text-[13px] font-semibold text-zinc-500 mb-1">고른 이유</Text>
+                  <Text className="text-[14px] leading-[22px] text-zinc-700">{rec.reason}</Text>
+                </View>
+              ) : null}
+              <View className="flex-row mt-4 -mx-1">
+                <View className="flex-1 mx-1">
+                  <Button label="운동 방법 보기" variant="secondary" onPress={openGuide} loading={guideLoading} />
+                </View>
+                {plan.video_url ? (
+                  <View className="flex-1 mx-1">
+                    <Button label="영상" variant="secondary" onPress={() => Linking.openURL(plan.video_url)} />
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          )}
+        </Card>
+      </Section>
+
+      <View className="flex-row justify-between">
+        <TouchableOpacity onPress={() => fetchRecommendation()} disabled={loading} className="py-2">
+          <Text className="text-[14px] text-zinc-500">다른 운동 보기</Text>
         </TouchableOpacity>
-      </ScrollView>
+        <TouchableOpacity
+          onPress={() => {
+            setStretching(!stretching);
+            fetchRecommendation({ stretching: !stretching });
+          }}
+          disabled={loading}
+          className="py-2"
+        >
+          <Text className="text-[14px] text-zinc-500">{stretching ? "일반 운동으로 돌아가기" : "가볍게 스트레칭만 할래요"}</Text>
+        </TouchableOpacity>
+      </View>
+      {stretching ? (
+        <Text className="text-[13px] text-zinc-500 mt-2">스트레칭은 회복 세션이라 주간 목표 횟수에는 넣지 않아요.</Text>
+      ) : null}
 
-      {/* AI Guide Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={guideModalVisible}
-        onRequestClose={() => setGuideModalVisible(false)}
-      >
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-white rounded-t-[40px] p-8 h-[70%]">
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-2xl font-black text-gray-900">✨ AI 스마트 가이드</Text>
-              <TouchableOpacity onPress={() => setGuideModalVisible(false)}>
-                <Ionicons name="close-circle" size={32} color="#d1d5db" />
+      <Modal visible={!!guide} animationType="slide" transparent onRequestClose={() => setGuide(null)}>
+        <View className="flex-1 justify-end bg-black/40">
+          <View className="bg-white rounded-t-2xl h-[75%] w-full self-center" style={{ maxWidth: 480 }}>
+            <View className="flex-row justify-between items-center px-5 h-14 border-b border-line">
+              <Text className="text-[16px] font-semibold text-ink">{plan?.name}</Text>
+              <TouchableOpacity onPress={() => setGuide(null)}>
+                <Text className="text-[15px] text-zinc-500">닫기</Text>
               </TouchableOpacity>
             </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View className="bg-blue-50 p-6 rounded-3xl border border-blue-100 mb-6">
-                <Text className="text-blue-900 text-base font-bold leading-7">
-                  {aiGuide?.guide_text}
-                </Text>
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 32 }}>
+              <PlainText text={guide?.guide_text || ""} />
+              <View className="mt-6">
+                <Button label="유튜브에서 자세 영상 찾기" variant="secondary" onPress={() => Linking.openURL(guide?.youtube_url)} />
               </View>
-
-              <TouchableOpacity
-                onPress={() => Linking.openURL(aiGuide?.youtube_url)}
-                className="bg-red-600 p-5 rounded-2xl flex-row items-center justify-center shadow-lg"
-              >
-                <Ionicons name="logo-youtube" size={24} color="white" style={{ marginRight: 8 }} />
-                <Text className="text-white font-black text-lg">유튜브에서 영상 보기</Text>
-              </TouchableOpacity>
-              
-              <Text className="text-gray-400 text-center text-[10px] font-bold mt-6">
-                AI PT 코치는 최신 정보를 바탕으로 분석하지만,{"\n"}수행 중 통증이 느껴지면 즉시 중단하세요!
-              </Text>
+              <Text className="text-[12px] text-zinc-400 mt-4">AI 가 쓴 설명이에요. 운동 중 통증이 있으면 바로 멈추세요.</Text>
             </ScrollView>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </Screen>
   );
 }

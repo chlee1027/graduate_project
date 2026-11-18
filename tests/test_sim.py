@@ -83,3 +83,12 @@ def test_build_candidates_rules():
     assert {p["intensity"] for p in c} == {"low"}
     c = build_candidates(S.PLANS, _state(available_minutes=5), usage)
     assert all(p["minutes"] <= 5 for p in c)
+
+
+def test_coach_reason_names_the_pain():
+    """간접 통증 감점이 걸린 운동의 이유 문장에 그 부위 이름이 들어가는지(예전엔 빈칸이었다)."""
+    usage = {"major": {}, "sub": {}}
+    c = build_candidates(S.PLANS, _state(location="gym", pain_parts=["knee"], fatigue=1), usage)
+    hit = [p for p in c if "legs" in p["target_parts"] and "knee" not in (p["avoid_if_pain"] or "")]
+    assert hit and all("무릎" in p["coach_reason"] for p in hit)
+    assert all("  " not in p["coach_reason"] for p in c)

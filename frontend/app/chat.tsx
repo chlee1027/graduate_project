@@ -1,10 +1,12 @@
-import React, { useState, useRef } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
+import React, { useRef, useState } from "react";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Stack } from "expo-router";
-import { useUserStore } from "../src/store/userStore";
-import client from "../src/api/client";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useUserStore } from "../src/store/userStore";
+import client from "../src/api/client";
+import { errorMessage as serverMessage } from "../src/utils/dialog";
+import { colors, PlainText } from "../src/ui";
 
 interface Message {
   id: string;
@@ -12,97 +14,97 @@ interface Message {
   sender: "user" | "ai";
 }
 
+const EXAMPLES = ["스쿼트할 때 무릎이 아파요", "주 3회 초보 루틴 짜 줘", "운동 전후 스트레칭 순서"];
+
 export default function ChatScreen() {
   const { userId } = useUserStore();
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    { id: "1", text: "안녕하세요! 무엇이든 물어보세요. 저는 당신의 AI PT 코치입니다. 💪", sender: "ai" }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
-
-    const userMessage: Message = { id: Date.now().toString(), text: input, sender: "user" };
-    setMessages(prev => [...prev, userMessage]);
+  const send = async (text?: string) => {
+    const q = (text ?? input).trim();
+    if (!q || loading) return;
+    setMessages((prev) => [...prev, { id: Date.now().toString(), text: q, sender: "user" }]);
     setInput("");
     setLoading(true);
-
     try {
-      const response = await client.post("/api/chatbot/ask", {
-        message: input,
-        user_id: userId || "anonymous"
-      });
-      
-      const aiMessage: Message = { id: (Date.now() + 1).toString(), text: response.data.answer, sender: "ai" };
-      setMessages(prev => [...prev, aiMessage]);
+      const response = await client.post("/api/chatbot/ask", { message: q, user_id: userId || "anonymous" });
+      setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), text: response.data.answer, sender: "ai" }]);
     } catch (error) {
       console.error("Chat error:", error);
-      const errorMessage: Message = { id: (Date.now() + 1).toString(), text: "죄송합니다. 오류가 발생했습니다. 다시 시도해주세요.", sender: "ai" };
-      setMessages(prev => [...prev, errorMessage]);
+      const text = serverMessage(error, "답변을 받지 못했어요. 잠시 뒤에 다시 물어봐 주세요.");
+      setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), text, sender: "ai" }]);
     } finally {
       setLoading(false);
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={['bottom']}>
-      <Stack.Screen options={{ 
-        title: "AI PT 코치 상담",
-        headerShown: true,
-        headerStyle: { backgroundColor: '#2563eb' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: "900" }
-      }} />
-
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"} 
-        className="flex-1"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-      >
-        <ScrollView 
-          ref={scrollViewRef}
-          className="flex-1 p-4"
-          contentContainerStyle={{ paddingBottom: 20 }}
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+    <SafeAreaView className="flex-1 bg-white" edges={["bottom"]}>
+      <Stack.Screen options={{ title: "코치에게 질문" }} />
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} className="flex-1" keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
+        <ScrollView
+          ref={scrollRef}
+          className="flex-1"
+          contentContainerStyle={{ padding: 20, paddingBottom: 24 }}
+          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
         >
-          {messages.map((msg) => (
-            <View 
-              key={msg.id} 
-              className={`mb-4 max-w-[80%] ${msg.sender === "user" ? "self-end" : "self-start"}`}
-            >
-              <View className={`p-4 rounded-2xl ${
-                msg.sender === "user" ? "bg-blue-600 rounded-tr-none" : "bg-white rounded-tl-none shadow-sm"
-              }`}>
-                <Text className={`${msg.sender === "user" ? "text-white" : "text-gray-800"} text-[15px] leading-relaxed`}>
-                  {msg.text}
-                </Text>
+          {messages.length === 0 ? (
+            <View className="pt-6">
+              <Text className="text-[20px] font-bold text-ink">무엇이든 물어보세요</Text>
+              <Text className="text-[14px] leading-[22px] text-zinc-500 mt-2">
+                운동 방법, 루틴, 통증처럼 궁금한 것을 물어보면 AI 코치가 답해요. 통증이 계속되면 전문가 진료를 받으세요.
+              </Text>
+              <View className="mt-6">
+                {EXAMPLES.map((e) => (
+                  <TouchableOpacity key={e} onPress={() => send(e)} className="py-3.5 border-b border-line flex-row justify-between items-center">
+                    <Text className="text-[15px] text-ink">{e}</Text>
+                    <Ionicons name="arrow-forward" size={16} color={colors.muted} />
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
-          ))}
-          {loading && (
-            <View className="self-start bg-white p-4 rounded-2xl rounded-tl-none shadow-sm mb-4">
-              <ActivityIndicator color="#2563eb" />
-            </View>
+          ) : null}
+
+          {messages.map((m) =>
+            m.sender === "user" ? (
+              <View key={m.id} className="self-end max-w-[85%] bg-ink rounded-2xl rounded-br-md px-4 py-3 mb-4">
+                <Text className="text-[15px] leading-6 text-white">{m.text}</Text>
+              </View>
+            ) : (
+              <View key={m.id} className="self-start max-w-[92%] mb-5">
+                <Text className="text-[12px] font-semibold text-brand mb-1">코치</Text>
+                <PlainText text={m.text} />
+              </View>
+            )
           )}
+          {loading ? (
+            <View className="self-start py-2">
+              <ActivityIndicator color={colors.muted} />
+            </View>
+          ) : null}
         </ScrollView>
 
-        <View className="p-4 bg-white border-t border-gray-100 flex-row items-center">
+        <View className="px-4 py-3 border-t border-line flex-row items-end">
           <TextInput
-            className="flex-1 bg-gray-100 p-4 rounded-2xl mr-3 text-[15px]"
-            placeholder="궁금한 운동 지식을 물어보세요..."
+            className="flex-1 min-h-[44px] max-h-32 px-4 py-3 rounded-xl border border-line text-[15px] text-ink mr-2"
+            placeholder="질문을 입력하세요"
+            placeholderTextColor="#A1A1AA"
             value={input}
             onChangeText={setInput}
+            onSubmitEditing={() => send()}
             multiline
           />
-          <TouchableOpacity 
-            onPress={sendMessage}
-            className={`w-12 h-12 rounded-full items-center justify-center ${input.trim() ? "bg-blue-600" : "bg-gray-200"}`}
-            disabled={!input.trim()}
+          <TouchableOpacity
+            onPress={() => send()}
+            disabled={!input.trim() || loading}
+            accessibilityLabel="보내기"
+            className={`w-11 h-11 rounded-xl items-center justify-center ${input.trim() ? "bg-ink" : "bg-canvas"}`}
           >
-            <Ionicons name="send" size={20} color={input.trim() ? "#fff" : "#999"} />
+            <Ionicons name="arrow-up" size={20} color={input.trim() ? "#fff" : "#A1A1AA"} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

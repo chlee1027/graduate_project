@@ -93,7 +93,7 @@ def get_user_stats_summary(user_id: str, db: Session = Depends(get_db)):
         target_date = seven_days_ago + timedelta(days=i)
         activity_chart.append({
             "date": target_date.strftime("%Y-%m-%d"),
-            "day_name": target_date.strftime("%a"), 
+            "day_name": "월화수목금토일"[target_date.weekday()], 
             "completed": target_date in workout_map,
             "type": workout_map.get(target_date, "none")
         })

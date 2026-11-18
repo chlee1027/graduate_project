@@ -1,12 +1,34 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Alert, Switch, ActivityIndicator, Platform } from "react-native";
-import { useRouter, Stack, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { Text, TouchableOpacity, View } from "react-native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useUserStore } from "../../src/store/userStore";
 import client from "../../src/api/client";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import { confirmAction, notify } from "../../src/utils/dialog";
+import { Button, Card, Chip, colors, Loading, Screen, Section, Segmented } from "../../src/ui";
 
 type WorkoutPhase = "WORK" | "REST" | "FEEDBACK";
+
+const PAIN_PARTS = [
+  { id: "knee", label: "무릎" },
+  { id: "lower_back", label: "허리" },
+  { id: "shoulder", label: "어깨" },
+  { id: "wrist", label: "손목" },
+  { id: "ankle", label: "발목" },
+  { id: "neck", label: "목" },
+  { id: "hip", label: "골반·고관절" },
+];
+
+// RPE: 주관적 운동 강도(1 매우 쉬움 ~ 10 한계). 6~8 이 알맞은 강도.
+const RPE_HINT: Record<number, string> = {
+  1: "매우 쉬웠어요", 2: "쉬웠어요", 3: "쉬웠어요", 4: "가벼웠어요", 5: "적당히 가벼웠어요",
+  6: "알맞았어요", 7: "알맞았어요", 8: "힘들었지만 해냈어요", 9: "아주 힘들었어요", 10: "한계였어요",
+};
+
+const formatTime = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+};
 
 export default function WorkoutSession() {
   const router = useRouter();
@@ -14,79 +36,57 @@ export default function WorkoutSession() {
   const { userId } = useUserStore();
 
   const [loading, setLoading] = useState(true);
-  const [recommendation, setRecommendation] = useState<any>(null);
+  const [rec, setRec] = useState<any>(null);
   const [phase, setPhase] = useState<WorkoutPhase>("WORK");
-  
-  // Timers
-  const [elapsedSeconds, setElapsedSeconds] = useState(0); 
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [totalElapsedSeconds, setTotalElapsedSeconds] = useState(0);
   const [restTimeLeft, setRestTimeLeft] = useState(0);
   const [currentSet, setCurrentSet] = useState(1);
 
-  // Feedback State
   const [completed, setCompleted] = useState(true);
   const [rpe, setRpe] = useState(7);
-  
-  // Pain State
   const [pain, setPain] = useState(false);
-  const [selectedPainParts, setSelectedPainParts] = useState<string[]>([]);
+  const [painParts, setPainParts] = useState<string[]>([]);
   const [painSeverity, setPainSeverity] = useState<"mild" | "severe">("mild");
+  const [saving, setSaving] = useState(false);
 
-  const painPartsList = [
-    { id: "knee", label: "무릎" },
-    { id: "lower_back", label: "허리" },
-    { id: "shoulder", label: "어깨" },
-    { id: "wrist", label: "손목" },
-    { id: "ankle", label: "발목" },
-    { id: "neck", label: "목/경추" },
-    { id: "hip", label: "골반/고관절" },
-  ];
-
-  const togglePainPart = (partId: string) => {
-    setSelectedPainParts(prev => 
-      prev.includes(partId) ? prev.filter(p => p !== partId) : [...prev, partId]
-    );
-  };
-
-  // 1. Stopwatch Logic (Work Phase)
+  // 운동 중 스톱워치
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (phase === "WORK" && !loading) {
-      interval = setInterval(() => {
-        setElapsedSeconds((prev) => prev + 1);
-      }, 1000);
+      interval = setInterval(() => setElapsedSeconds((prev) => prev + 1), 1000);
     }
-    return () => { if (interval) clearInterval(interval); };
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [phase, loading]);
 
-  // 2. Rest Timer Logic
+  // 휴식 카운트다운
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (phase === "REST" && restTimeLeft > 0) {
       interval = setInterval(() => {
         setRestTimeLeft((prev) => {
           const next = prev > 0 ? prev - 1 : 0;
-          if (next === 0) {
-            startNextSet();
-          }
+          if (next === 0) startNextSet();
           return next;
         });
       }, 1000);
     }
-    return () => { if (interval) clearInterval(interval); };
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [phase, restTimeLeft]);
 
-  // Fetch Details
   useEffect(() => {
     const fetchDetails = async () => {
       try {
         const response = await client.get(`/api/recommend/${recommendation_id}`);
-        const data = response.data;
-        setRecommendation(data);
-        setLoading(false);
+        setRec(response.data);
       } catch (error) {
         console.error(error);
-        Alert.alert("오류", "운동 정보를 불러오는데 실패했습니다.");
+        notify("운동 정보를 불러오지 못했어요");
+      } finally {
         setLoading(false);
       }
     };
@@ -94,7 +94,7 @@ export default function WorkoutSession() {
   }, [recommendation_id]);
 
   const startNextSet = () => {
-    if (currentSet < recommendation.selected_plan.sets) {
+    if (currentSet < rec.selected_plan.sets) {
       setCurrentSet(currentSet + 1);
       setElapsedSeconds(0);
       setPhase("WORK");
@@ -104,41 +104,31 @@ export default function WorkoutSession() {
   };
 
   const handleSetComplete = () => {
-    // 누적 시간 업데이트
-    setTotalElapsedSeconds(prev => prev + elapsedSeconds);
-
-    if (currentSet < recommendation.selected_plan.sets) {
-      setRestTimeLeft(recommendation.selected_plan.rest_seconds || 60); 
+    setTotalElapsedSeconds((prev) => prev + elapsedSeconds);
+    if (currentSet < rec.selected_plan.sets) {
+      setRestTimeLeft(rec.selected_plan.rest_seconds || 60);
       setPhase("REST");
     } else {
       setPhase("FEEDBACK");
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
-  };
-
   const handleFinishWorkout = async () => {
+    setSaving(true);
     try {
-      const actualMinutes = Math.max(1, Math.round(totalElapsedSeconds / 60));
-      
       await client.post("/api/log/", {
         recommendation_id,
         user_id: userId,
         plan_id: id,
         completed,
-        actual_minutes: actualMinutes,
+        actual_minutes: Math.max(1, Math.round(totalElapsedSeconds / 60)),
         actual_sets: currentSet,
         rpe,
         pain_occurred: pain,
-        pain_parts: pain ? selectedPainParts : [],
+        pain_parts: pain ? painParts : [],
         pain_severity: pain ? painSeverity : null,
       });
-
-      const rewardRes = await client.post("/api/reward/", {
+      await client.post("/api/reward/", {
         recommendation_id,
         user_id: userId,
         completed,
@@ -146,206 +136,145 @@ export default function WorkoutSession() {
         pain_occurred: pain,
         streak: null,
       });
-
-      if (Platform.OS === 'web') {
-        window.alert(`수고하셨습니다!\n총 ${formatTime(totalElapsedSeconds)} 동안 운동하셨네요.\n보상: ${rewardRes.data.reward.toFixed(2)}점`);
-        router.replace("/");
-      } else {
-        Alert.alert(
-          "수고하셨습니다!",
-          `총 ${formatTime(totalElapsedSeconds)} 동안 운동하셨네요.\n보상: ${rewardRes.data.reward.toFixed(2)}점`,
-          [{ text: "홈으로", onPress: () => router.replace("/") }]
-        );
-      }
+      notify("기록했어요", `운동 시간 ${formatTime(totalElapsedSeconds)}. 다음 추천에 반영됩니다.`);
+      router.replace("/");
     } catch (error) {
       console.error(error);
-      if (Platform.OS === 'web') {
-        window.alert("오류: 기록 저장 중 문제가 발생했습니다.");
-      } else {
-        Alert.alert("오류", "기록 저장 중 문제가 발생했습니다.");
-      }
+      notify("기록을 저장하지 못했어요", "잠시 뒤에 다시 시도해 주세요.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  if (loading) return (
-    <View className="flex-1 justify-center items-center bg-white">
-      <ActivityIndicator size="large" color="#2563eb" />
-    </View>
-  );
+  if (loading || !rec) return <Loading />;
+  const plan = rec.selected_plan;
+  const target = plan.type === "rep-based" ? `${plan.reps}회` : `총 ${plan.minutes}분`;
 
-  return (
-    <SafeAreaView className="flex-1 bg-white">
-      <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
-        
-        <View className="mb-8">
-          <Text className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
-            {phase === "WORK" ? `SET ${currentSet} IN PROGRESS` : phase === "REST" ? "RESTING" : "SESSION COMPLETE"}
-          </Text>
-          <Text className="text-3xl font-black text-gray-900">{recommendation.selected_plan.name}</Text>
-        </View>
+  if (phase === "FEEDBACK") {
+    return (
+      <Screen footer={<Button label="기록 저장" onPress={handleFinishWorkout} loading={saving} />}>
+        <Stack.Screen options={{ title: "운동 기록" }} />
+        <Text className="text-[24px] leading-8 font-bold text-ink">{plan.name}</Text>
+        <Text className="text-[14px] text-zinc-500 mt-1 mb-8">
+          {currentSet}세트 · {formatTime(totalElapsedSeconds)}
+        </Text>
 
-        {phase === "WORK" && (
-          <Animated.View key="work-phase" entering={FadeIn} exiting={FadeOut} className="items-center">
-            {/* 오늘의 운동 목표 가이드 추가 */}
-            <View className="bg-blue-50 w-full p-4 rounded-2xl mb-6 border border-blue-100 items-center">
-              <Text className="text-blue-800 font-black text-lg mb-1">🎯 오늘의 목표</Text>
-              <Text className="text-blue-600 font-bold">
-                {recommendation.selected_plan.sets}세트 × {recommendation.selected_plan.reps}{recommendation.selected_plan.type === "rep-based" ? "회" : "초"}
+        <Section label="끝까지 했나요?">
+          <Segmented
+            options={[{ label: "끝까지 했어요", value: "yes" }, { label: "중간에 멈췄어요", value: "no" }]}
+            value={completed ? "yes" : "no"}
+            onChange={(v) => setCompleted(v === "yes")}
+          />
+        </Section>
+
+        <Section label="얼마나 힘들었나요?" right={<Text className="text-[13px] font-semibold text-ink">{RPE_HINT[rpe]}</Text>}>
+          <View className="flex-row flex-wrap -m-1">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+              <TouchableOpacity
+                key={n}
+                onPress={() => setRpe(n)}
+                className={`m-1 w-[17%] h-10 rounded-lg border items-center justify-center ${rpe === n ? "bg-ink border-ink" : "bg-white border-line"}`}
+              >
+                <Text className={`text-[15px] ${rpe === n ? "text-white font-semibold" : "text-ink"}`}>{n}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text className="text-[13px] text-zinc-500 mt-2">1은 아주 쉬움, 10은 한계. 6에서 8이 알맞은 강도예요.</Text>
+        </Section>
+
+        <Section label="아픈 곳이 있었나요?">
+          <Segmented
+            options={[{ label: "없었어요", value: "no" }, { label: "있었어요", value: "yes" }]}
+            value={pain ? "yes" : "no"}
+            onChange={(v) => setPain(v === "yes")}
+          />
+        </Section>
+
+        {pain ? (
+          <>
+            <Section label="어디가 아팠나요? (여러 개 선택)">
+              <View className="flex-row flex-wrap -m-1">
+                {PAIN_PARTS.map((p) => (
+                  <Chip
+                    key={p.id}
+                    label={p.label}
+                    tone="danger"
+                    selected={painParts.includes(p.id)}
+                    onPress={() =>
+                      setPainParts((prev) => (prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id]))
+                    }
+                  />
+                ))}
+              </View>
+            </Section>
+            <Section label="정도">
+              <Segmented
+                options={[{ label: "조금 뻐근해요", value: "mild" }, { label: "심하게 아파요", value: "severe" }]}
+                value={painSeverity}
+                onChange={(v) => setPainSeverity(v as "mild" | "severe")}
+              />
+              <Text className="text-[13px] text-zinc-500 mt-2">
+                {painSeverity === "mild"
+                  ? "7일 동안 그 부위에 무리가 가는 운동을 빼고 추천해요."
+                  : "그 부위를 주의 부위로 등록해 앞으로 계속 빼고 추천해요."}
               </Text>
-            </View>
+            </Section>
+          </>
+        ) : null}
+      </Screen>
+    );
+  }
 
-            <View className="w-64 h-64 rounded-full border-8 border-blue-600 items-center justify-center mb-10 bg-white shadow-xl">
-              <Text className="text-6xl font-black text-blue-600 mb-1">{formatTime(elapsedSeconds)}</Text>
-              <Text className="text-gray-400 font-bold text-xs uppercase">Elapsed Time</Text>
-            </View>
+  const resting = phase === "REST";
+  return (
+    <Screen
+      footer={
+        <View>
+          {resting ? (
+            <Button label="바로 다음 세트" onPress={startNextSet} />
+          ) : (
+            <Button label={currentSet === plan.sets ? "마지막 세트 완료" : "세트 완료"} onPress={handleSetComplete} />
+          )}
+          <View className="h-1" />
+          <Button
+            label="오늘은 여기까지"
+            variant="ghost"
+            onPress={() => confirmAction("운동 그만하기", "기록하지 않고 나갈까요?", "나가기", () => router.replace("/"), "계속하기")}
+          />
+        </View>
+      }
+    >
+      <Stack.Screen options={{ title: plan.name }} />
+      <View className="flex-row justify-between items-baseline">
+        <Text className="text-[15px] font-semibold text-ink">
+          세트 {currentSet} <Text className="text-zinc-400">/ {plan.sets}</Text>
+        </Text>
+        <Text className="text-[14px] text-zinc-500">목표 {target}</Text>
+      </View>
+      <View className="flex-row mt-3">
+        {Array.from({ length: plan.sets }, (_, i) => (
+          <View
+            key={i}
+            className="flex-1 h-1.5 rounded-full mr-1"
+            style={{ backgroundColor: i < currentSet - (resting ? 0 : 1) ? colors.brand : i === currentSet - 1 ? "#A7C8B9" : colors.canvas }}
+          />
+        ))}
+      </View>
 
-            <View className="bg-gray-50 w-full p-8 rounded-[40px] mb-6 items-center border border-gray-100">
-              <Text className="text-5xl font-black text-gray-900 mb-2">{currentSet} <Text className="text-xl text-gray-400">/ {recommendation.selected_plan.sets}</Text></Text>
-              <Text className="text-gray-500 font-bold text-sm mb-6">현재 세트 진행 중</Text>
-              
-              <TouchableOpacity
-                onPress={handleSetComplete}
-                className="w-full bg-blue-600 h-16 rounded-2xl items-center justify-center shadow-lg"
-              >
-                <Text className="text-white font-black text-lg">
-                  {currentSet === recommendation.selected_plan.sets ? "전체 운동 완료 🏁" : "세트 완료 & 휴식 시작 ⚡️"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        )}
+      <View className="items-center py-16">
+        <Text className="text-[14px] text-zinc-500 mb-2">{resting ? "휴식" : "운동 시간"}</Text>
+        <Text className="text-[64px] leading-[72px] font-semibold text-ink" style={{ fontVariant: ["tabular-nums"] }}>
+          {formatTime(resting ? restTimeLeft : elapsedSeconds)}
+        </Text>
+        {resting ? <Text className="text-[14px] text-zinc-500 mt-2">끝나면 다음 세트가 자동으로 시작돼요</Text> : null}
+      </View>
 
-        {phase === "REST" && (
-          <Animated.View key="rest-phase" entering={FadeIn} exiting={FadeOut} className="items-center">
-            <View className="w-64 h-64 rounded-full border-8 border-green-100 items-center justify-center mb-10 bg-green-50 shadow-sm">
-              <Text className="text-6xl font-black text-green-600 mb-1">{formatTime(restTimeLeft)}</Text>
-              <Text className="text-green-400 font-bold text-xs uppercase">Recovery Phase</Text>
-            </View>
-
-            <View className="bg-gray-50 w-full p-8 rounded-[40px] mb-6 items-center border border-gray-100">
-              <Text className="text-2xl font-black text-gray-800 mb-2">꿀맛 같은 휴식 시간 🧘</Text>
-              <Text className="text-gray-500 font-bold text-sm mb-8 text-center">다음 세트를 위해 호흡을 가다듬으세요</Text>
-              
-              <TouchableOpacity
-                onPress={startNextSet}
-                className="w-full bg-green-600 h-16 rounded-2xl items-center justify-center shadow-lg"
-              >
-                <Text className="text-white font-black text-lg">휴식 건너뛰고 다음 세트 시작 ❯</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        )}
-
-        {phase === "FEEDBACK" && (
-          <Animated.View key="feedback-phase" entering={FadeIn} className="space-y-6">
-            <View className="bg-blue-600 p-8 rounded-[40px] shadow-xl items-center mb-4">
-              <Text className="text-white text-4xl mb-2">🏆</Text>
-              <Text className="text-white font-black text-2xl text-center">오늘의 운동을 마쳤습니다!</Text>
-            </View>
-
-            <View className="bg-gray-50 p-8 rounded-[40px] border border-gray-100">
-              <View className="flex-row justify-between items-center mb-8">
-                <Text className="text-gray-800 font-black text-lg">전체 완료했나요?</Text>
-                <Switch value={completed} onValueChange={setCompleted} trackColor={{ false: "#d1d5db", true: "#2563eb" }} />
-              </View>
-
-              <View className="mb-8">
-                <Text className="text-gray-800 font-black text-lg mb-4">운동 강도는 어땠나요?</Text>
-                <View className="flex-row justify-between">
-                  {[1, 3, 5, 7, 9, 10].map((num) => (
-                    <TouchableOpacity
-                      key={num}
-                      onPress={() => setRpe(num)}
-                      className={`w-10 h-10 rounded-xl justify-center items-center ${rpe === num ? "bg-blue-600 shadow-md" : "bg-white border border-gray-100"}`}
-                    >
-                      <Text className={`font-black ${rpe === num ? "text-white" : "text-blue-600"}`}>{num}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View className="flex-row justify-between items-center">
-                <View className="flex-1">
-                  <Text className="text-gray-800 font-black text-lg">통증이 있었나요?</Text>
-                  <Text className="text-gray-400 text-xs font-bold">부상을 방지하기 위해 꼭 알려주세요.</Text>
-                </View>
-                <Switch value={pain} onValueChange={setPain} trackColor={{ false: "#d1d5db", true: "#ef4444" }} />
-              </View>
-
-              {pain && (
-                <Animated.View entering={FadeIn} className="mt-8 pt-8 border-t border-blue-100">
-                  <Text className="text-blue-900 font-black text-base mb-4">어디가 아프신가요? (중복 선택 가능)</Text>
-                  <View className="flex-row flex-wrap mb-8">
-                    {painPartsList.map((part) => (
-                      <TouchableOpacity
-                        key={part.id}
-                        onPress={() => togglePainPart(part.id)}
-                        className={`px-4 py-2.5 rounded-full mr-2 mb-2 border ${
-                          selectedPainParts.includes(part.id) 
-                            ? "bg-blue-600 border-blue-600" 
-                            : "bg-white border-blue-100"
-                        }`}
-                      >
-                        <Text className={`font-bold text-xs ${
-                          selectedPainParts.includes(part.id) ? "text-white" : "text-blue-600"
-                        }`}>
-                          {part.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  <Text className="text-blue-900 font-black text-base mb-4">통증의 정도는 어떤가요?</Text>
-                  <View className="flex-row space-x-3">
-                    <TouchableOpacity
-                      onPress={() => setPainSeverity("mild")}
-                      className={`flex-1 p-4 rounded-2xl border items-center ${
-                        painSeverity === "mild" ? "bg-blue-50 border-blue-400" : "bg-white border-gray-100"
-                      }`}
-                    >
-                      <Text className="text-xl mb-1">🧘</Text>
-                      <Text className={`font-black text-xs ${painSeverity === "mild" ? "text-blue-700" : "text-gray-400"}`}>약간의 뻐근함</Text>
-                      <Text className="text-[8px] text-gray-400 mt-1">7일간 조심하기</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setPainSeverity("severe")}
-                      className={`flex-1 p-4 rounded-2xl border items-center ${
-                        painSeverity === "severe" ? "bg-red-50 border-red-400" : "bg-white border-gray-100"
-                      }`}
-                    >
-                      <Text className="text-xl mb-1">🚨</Text>
-                      <Text className={`font-black text-xs ${painSeverity === "severe" ? "text-red-700" : "text-gray-400"}`}>심한 통증/부상</Text>
-                      <Text className="text-[8px] text-gray-400 mt-1">영구 제외 등록</Text>
-                    </TouchableOpacity>
-                  </View>
-                </Animated.View>
-              )}
-            </View>
-
-            <TouchableOpacity 
-              className="bg-gray-900 p-6 rounded-[32px] items-center shadow-xl mt-4" 
-              onPress={handleFinishWorkout}
-            >
-              <Text className="text-white font-black text-xl">운동 기록 저장하기 ✅</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        )}
-
-        {(phase === "WORK" || phase === "REST") && (
-          <TouchableOpacity 
-            onPress={() => {
-              Alert.alert("운동 중단", "정말 여기서 그만두시겠어요?", [
-                { text: "계속하기", style: "cancel" },
-                { text: "중단하기", style: "destructive", onPress: () => router.replace("/") }
-              ])
-            }} 
-            className="py-6 items-center"
-          >
-            <Text className="text-gray-400 font-bold text-sm underline">오늘 운동 여기까지만 할게요</Text>
-          </TouchableOpacity>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+      {plan.tip || plan.description ? (
+        <Card tone="muted">
+          {plan.description ? <Text className="text-[14px] leading-[22px] text-zinc-700">{plan.description}</Text> : null}
+          {plan.tip ? <Text className="text-[14px] leading-[22px] text-ink font-semibold mt-1">{plan.tip}</Text> : null}
+        </Card>
+      ) : null}
+    </Screen>
   );
 }
