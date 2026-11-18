@@ -1,0 +1,47 @@
+# main 에 화면 코드가 들어오면 frontend/output.css 를 다시 만들고, 바뀌었으면 커밋한다.
+# (화면 className 을 바꾸고 npm run css 를 잊어도 저장소의 output.css 가 따라온다)
+name: css
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/app/**"
+      - "frontend/src/**"
+      - "frontend/global.css"
+      - "frontend/tailwind.config.js"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: css-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run css
+        working-directory: frontend
+      - name: Commit output.css if it changed
+        run: |
+          if git diff --quiet -- frontend/output.css; then
+            echo "output.css is up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/output.css
+          git commit -m "Rebuild frontend/output.css"
+          git pull --rebase origin main
+          git push origin HEAD:main

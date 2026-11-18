@@ -121,6 +121,13 @@ npx expo start --web
 
 ---
 
+## 자동 검사 (GitHub Actions)
+
+*   **test** (`.github/workflows/test.yml`): push 와 PR 마다 서버 시험(`pytest tests`)과 화면 타입 검사(`tsc --noEmit`)를 돌린다. PR 에서는 `frontend/output.css` 가 최신인지도 본다.
+*   **css** (`.github/workflows/css.yml`): main 에 화면 코드가 들어오면 `npm run css` 로 `frontend/output.css` 를 다시 만들고, 바뀌었으면 봇이 커밋한다. Vercel 배포 빌드도 같은 명령을 먼저 돌리므로 배포되는 스타일은 늘 최신이다.
+
+---
+
 ## 시간대 처리
 
 기록(`created_at`)은 `timestamptz` 로 UTC 에 저장하고, 스트릭과 주간 활동은 한국 날짜로 셉니다. 변환은 `app/core/timezone.py` 한곳에 모여 있습니다.

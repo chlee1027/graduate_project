@@ -6,7 +6,8 @@ import { Platform } from "react-native";
 // 알림 표시 설정 (앱이 켜져 있을 때도 알림을 보여줄지 설정)
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true, // expo-notifications 0.32 부터 shouldShowAlert 대신 둘로 나뉘었다
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),

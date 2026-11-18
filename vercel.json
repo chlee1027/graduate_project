@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "cd frontend && npx expo export --platform web",
+  "buildCommand": "cd frontend && npm run css && npx expo export --platform web",
   "installCommand": "cd frontend && npm ci",
   "outputDirectory": "frontend/dist",
   "regions": [
