@@ -1,0 +1,6 @@
+# 시뮬레이션(sim/)과 시험(tests/)까지 돌릴 때
+-r requirements.txt
+pandas
+matplotlib
+pytest
+httpx

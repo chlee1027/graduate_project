@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import onboarding, recommend, log, reward, user, debug, stats, chatbot
@@ -20,7 +22,9 @@ app.include_router(recommend.router, prefix="/api/recommend", tags=["recommend"]
 app.include_router(log.router, prefix="/api/log", tags=["log"])
 app.include_router(reward.router, prefix="/api/reward", tags=["reward"])
 app.include_router(user.router, prefix="/api/user", tags=["user"])
-app.include_router(debug.router, prefix="/api/debug", tags=["debug"])
+# 시험용 기록 조작 API. 공개 배포(Vercel)에서는 열지 않는다.
+if not os.environ.get("VERCEL"):
+    app.include_router(debug.router, prefix="/api/debug", tags=["debug"])
 app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
 app.include_router(chatbot.router, prefix="/api/chatbot", tags=["chatbot"])
 

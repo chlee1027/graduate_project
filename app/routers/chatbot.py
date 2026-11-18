@@ -1,58 +1,77 @@
+"""AI 코치 (Claude). 운동 가이드와 자유 질문 두 가지.
+
+모델·노력 수준은 환경 변수 CLAUDE_MODEL·CLAUDE_EFFORT 로 바꾼다(app/core/config.py).
+공개 데모에서는 호출마다 rate_limit.check_and_record 가 IP·하루 한도를 먼저 본다.
+"""
+
 import re
 import urllib.parse
 
-from fastapi import APIRouter, HTTPException
+import anthropic
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-import google.generativeai as genai
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
+from app.db.database import get_db
+from app.services.rate_limit import check_and_record
 
 router = APIRouter()
 
-# Gemini API 설정 및 모델 자동 탐색
-GEMINI_API_KEY = settings.GEMINI_API_KEY
-model = None
+_client = None
 
-def init_gemini():
-    global model
-    if not GEMINI_API_KEY:
-        print("GEMINI_API_KEY is missing in settings")
-        return
-    
+
+def get_client():
+    """첫 요청 때 만든다. 키가 없으면 None."""
+    global _client
+    if _client is None and settings.ANTHROPIC_API_KEY:
+        _client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY, timeout=60.0, max_retries=2)
+    return _client
+
+
+# 서버 쪽 거절 대체(fallbacks)를 받는 모델. Haiku 5.5 는 받지 않으므로 보내지 않는다.
+FALLBACK_MODELS = {"claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5", "claude-fable-5-2", "claude-fable-5-1"}
+
+COACH_SYSTEM = (
+    "당신은 10년 경력의 대한민국 최고 전문 헬스 트레이너 'AI PT 코치'입니다. "
+    "전문적이고 친절하며 동기부여가 되는 답변을 한국어로 합니다. "
+    "통증이나 부상이 의심되는 질문에는 운동을 멈추고 전문가 진료를 권합니다. "
+    "앱 화면에 그대로 보이므로 이모지와 마크다운(#, **, 표)을 쓰지 말고 짧은 문단과 '-' 목록으로만 씁니다."
+)
+
+
+def ask_claude(prompt: str, max_tokens: int = 2000) -> str:
+    client = get_client()
+    if client is None:
+        raise HTTPException(status_code=503, detail="AI 코치가 아직 연결되지 않았어요(API 키 없음).")
+    params = dict(
+        model=settings.CLAUDE_MODEL,
+        max_tokens=max_tokens,
+        system=COACH_SYSTEM,
+        output_config={"effort": settings.CLAUDE_EFFORT},
+        messages=[{"role": "user", "content": prompt}],
+    )
+    if settings.CLAUDE_MODEL in FALLBACK_MODELS:
+        # 안전 분류기가 거절하면 서버가 알맞은 모델로 다시 돌린다
+        params.update(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        
-        # 사용 가능한 모델 리스트 조회
-        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        print(f"Available models: {available_models}")
-        
-        # 최신/고성능 모델 순서대로 탐색 (사용자 요청 3.5 포함)
-        preferred_models = [
-            'models/gemini-3.5-flash',
-            'models/gemini-1.5-pro-002',
-            'models/gemini-1.5-pro', 
-            'models/gemini-1.5-flash'
-        ]
-        
-        target_model = None
-        for pm in preferred_models:
-            if pm in available_models:
-                target_model = pm
-                break
-        
-        if not target_model and available_models:
-            target_model = available_models[0]
-            
-        if target_model:
-            print(f"Connecting to REAL AI Model: {target_model}")
-            model = genai.GenerativeModel(target_model)
-        else:
-            print("No suitable models found for this API Key.")
-            
-    except Exception as e:
-        print(f"Critical Gemini Init Error: {e}")
-        model = None
+        response = client.beta.messages.create(**params)
+    except anthropic.RateLimitError:
+        raise HTTPException(status_code=429, detail="AI 코치가 잠시 바빠요. 조금 뒤에 다시 시도해 주세요.")
+    except anthropic.APIStatusError as e:
+        print(f"Claude API error {e.status_code}: {e.message}")
+        raise HTTPException(status_code=502, detail="AI 답변을 만드는 중 오류가 발생했습니다.")
+    except anthropic.APIConnectionError as e:
+        print(f"Claude connection error: {e}")
+        raise HTTPException(status_code=502, detail="AI 서버에 연결하지 못했습니다.")
 
-init_gemini()
+    if response.stop_reason == "refusal":
+        return "이 질문에는 답하기 어려워요. 운동 방법이나 루틴에 관한 질문으로 다시 물어봐 주세요."
+    text = "".join(block.text for block in response.content if block.type == "text").strip()
+    if not text:
+        raise HTTPException(status_code=502, detail="AI 답변이 비어 있습니다.")
+    return text
+
 
 def extract_search_query(text: str, fallback: str) -> str:
     """AI 답변에서 유튜브 검색어 한 줄만 뽑는다.
@@ -92,64 +111,34 @@ class ExerciseGuideRequest(BaseModel):
     target_parts: str
 
 @router.post("/ask")
-async def ask_gemini(request: ChatRequest):
-    if not model:
-        # 초기화 재시도 (서버 가동 중 키가 바뀌었을 가능성 대비)
-        init_gemini()
-        if not model:
-            raise HTTPException(status_code=500, detail="AI Model not available. Check API Key and Plan.")
+def ask_coach(request: ChatRequest, http: Request, db: Session = Depends(get_db)):
+    if get_client() is None:
+        raise HTTPException(status_code=503, detail="AI 코치가 아직 연결되지 않았어요(API 키 없음).")
+    check_and_record(db, http, "ask")
+    prompt = (
+        "사용자의 질문에 답하고, 답변 마지막에 운동 팁 하나를 덧붙여 주세요.\n\n"
+        f"사용자 질문: {request.message}"
+    )
+    return {"answer": ask_claude(prompt)}
 
-    try:
-        # 전문가 페르소나 부여 및 답변 생성
-        prompt = f"""
-        당신은 10년 경력의 대한민국 최고 전문 헬스 트레이너 'AI PT 코치'입니다. 
-        사용자의 질문에 대해 전문적이고, 친절하며, 강력한 동기부여를 주는 답변을 한국어로 제공하세요.
-        답변 마지막에는 항상 운동 팁 하나를 덧붙여주세요.
-        
-        사용자 질문: {request.message}
-        """
-        
-        response = model.generate_content(prompt)
-        return {"answer": response.text}
-        
-    except Exception as e:
-        print(f"Chat Execution Error: {e}")
-        raise HTTPException(status_code=500, detail=f"AI 답변 생성 중 오류가 발생했습니다: {str(e)}")
 
 @router.post("/exercise-guide")
-async def get_exercise_guide(request: ExerciseGuideRequest):
-    if not model:
-        init_gemini()
-        if not model:
-            raise HTTPException(status_code=500, detail="AI Model not available.")
+def get_exercise_guide(request: ExerciseGuideRequest, http: Request, db: Session = Depends(get_db)):
+    if get_client() is None:
+        raise HTTPException(status_code=503, detail="AI 코치가 아직 연결되지 않았어요(API 키 없음).")
+    check_and_record(db, http, "exercise-guide")
+    prompt = f"""다음 운동의 가이드를 작성해 주세요.
+운동 이름: {request.exercise_name}
+주요 타겟 부위: {request.target_parts}
 
-    try:
-        prompt = f"""
-        당신은 전문 PT 코치입니다. 다음 운동에 대해 상세한 가이드를 작성해주세요.
-        운동 이름: {request.exercise_name}
-        주요 타겟 부위: {request.target_parts}
+다음 형식을 지켜 한국어로 답변하세요:
+1. 운동 설명: (한 문장으로 핵심 설명)
+2. 주요 효과: (어디에 효과적인지 구체적으로, 근성장/다이어트/체형교정 관점에서 설명)
+3. 주의 사항: (부상 방지를 위한 핵심 팁 한 가지)
+4. 추천 유튜브 검색어: (유튜브에서 검색하기 좋은 키워드 하나를 백틱으로 감싸서)
 
-        다음 형식을 지켜서 한국어로 답변하세요:
-        1. 운동 설명: (한 문장으로 핵심 설명)
-        2. 주요 효과: (어디에 효과적인지 구체적으로, 근성장/다이어트/체형교정 관점에서 설명)
-        3. 주의 사항: (부상 방지를 위한 핵심 팁 한가지)
-        4. 추천 유튜브 검색어: (유튜브에서 검색하기 좋은 키워드 하나)
-
-        이모지를 적절히 사용하여 친절하게 답변해주세요.
-        """
-        
-        response = model.generate_content(prompt)
-        text = response.text
-        
-        search_query = extract_search_query(text, request.exercise_name + " 가이드")
-        
-        youtube_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(search_query)}"
-
-        return {
-            "guide_text": text,
-            "youtube_url": youtube_url
-        }
-        
-    except Exception as e:
-        print(f"Guide Generation Error: {e}")
-        raise HTTPException(status_code=500, detail="AI 가이드를 생성하는 중 오류가 발생했습니다.")
+항목 제목은 위 번호 그대로 한 줄에 쓰고, 내용은 그 아래 줄에 씁니다. 이모지는 쓰지 않습니다."""
+    text = ask_claude(prompt)
+    search_query = extract_search_query(text, request.exercise_name + " 가이드")
+    youtube_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(search_query)}"
+    return {"guide_text": text, "youtube_url": youtube_url}

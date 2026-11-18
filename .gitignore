@@ -22,3 +22,8 @@ Thumbs.db
 
 # Local Docs
 docs/exercise_database_guide.csv
+
+# 배포 도구가 만드는 파일 (Vercel CLI 연결 정보, 내려받은 환경 변수)
+.vercel
+.env.*
+!.env.example

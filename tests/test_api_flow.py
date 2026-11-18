@@ -112,3 +112,38 @@ def test_eps_greedy_still_selectable(env, monkeypatch):
     body, rw = _session(client)
     assert body["selected_plan"]["plan_id"]
     assert rw["detail"]["bandit_stat"]["count"] == 1
+
+
+class _FakeMessages:
+    def __init__(self):
+        self.calls = []
+
+    def create(self, **kw):
+        self.calls.append(kw)
+        from types import SimpleNamespace as NS
+        text = "1. 운동 설명: 기본 하체 운동\n4. 추천 유튜브 검색어:\n`맨몸 스쿼트 자세` (정확한 자극점)"
+        return NS(stop_reason="end_turn", content=[NS(type="text", text=text)])
+
+
+def test_exercise_guide_and_rate_limit(env, monkeypatch):
+    from types import SimpleNamespace as NS
+    from app.routers import chatbot
+
+    client, Session = env
+    app = client.app
+    app.include_router(chatbot.router, prefix="/api/chatbot")
+    fake = _FakeMessages()
+    monkeypatch.setattr(chatbot, "get_client", lambda: NS(beta=NS(messages=fake)))
+    monkeypatch.setattr(settings, "CHATBOT_PER_IP_PER_HOUR", 2)
+
+    body = {"exercise_name": "맨몸 스쿼트", "target_parts": "legs"}
+    r = client.post("/api/chatbot/exercise-guide", json=body)
+    assert r.status_code == 200, r.text
+    assert r.json()["youtube_url"].endswith("search_query=%EB%A7%A8%EB%AA%B8%20%EC%8A%A4%EC%BF%BC%ED%8A%B8%20%EC%9E%90%EC%84%B8")
+    assert fake.calls[0]["model"] == settings.CLAUDE_MODEL
+    assert ("fallbacks" in fake.calls[0]) == (settings.CLAUDE_MODEL in chatbot.FALLBACK_MODELS)
+    assert client.post("/api/chatbot/exercise-guide", json=body).status_code == 200
+    monkeypatch.setattr(settings, "CLAUDE_MODEL", "claude-haiku-5-5")
+    r = client.post("/api/chatbot/exercise-guide", json=body)     # 같은 IP 세 번째
+    assert r.status_code == 429 and "한 시간에 2번" in r.json()["detail"]
+    assert len(fake.calls) == 2                                    # 막힌 호출은 API 까지 안 간다

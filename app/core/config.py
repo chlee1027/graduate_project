@@ -17,7 +17,14 @@ class Settings(BaseSettings):
     STREAK_COEF: float = 0.1
 
     DATABASE_URL: str = "postgresql://postgres:1234@localhost:5432/fitness_ai"
-    GEMINI_API_KEY: str = ""
+    # AI 코치 (app/routers/chatbot.py)
+    ANTHROPIC_API_KEY: str = ""
+    CLAUDE_MODEL: str = "claude-opus-5-5"
+    CLAUDE_EFFORT: str = "low"   # 짧은 가이드·대화라 low. low | medium | high | xhigh | max
+    # AI 코치 호출 제한 (공개 데모용). 0 이면 제한 없음
+    CHATBOT_PER_IP_PER_HOUR: int = 10
+    CHATBOT_PER_DAY: int = 200
+    RATE_LIMIT_SALT: str = "local-dev-salt"
 
     class Config:
         env_file = ".env"

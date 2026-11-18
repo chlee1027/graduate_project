@@ -116,3 +116,16 @@ class LinUCBUser(Base):
     vec_b = Column(LargeBinary, nullable=False)
     n_updates = Column(Integer, default=0, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ChatbotCall(Base):
+    """AI 코치(Claude) 호출 기록. 공개 데모에서 호출 수를 제한하는 데만 쓴다(app/services/rate_limit.py).
+
+    IP 는 그대로 두지 않고 RATE_LIMIT_SALT 를 붙인 SHA-256 앞 16자리만 남긴다.
+    """
+    __tablename__ = "chatbot_calls"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ip_hash = Column(String, nullable=False, index=True)
+    endpoint = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
