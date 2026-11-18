@@ -3,7 +3,9 @@
     python -m sim.run_experiments            # 조율 + 본 실험, 결과는 sim/results/
     python -m sim.run_experiments --quick    # seed 를 줄여 빨리 한 번
 
-1. 조율: 개발 seed(0~4), main 시나리오에서 epsilon·alpha 후보를 돌려 기대 보상 평균이 가장 큰 값을 고른다.
+1. 조율: 개발 seed(0에서 4), main 시나리오에서 epsilon·alpha 후보를 돌려 기대 보상 평균이 가장 큰 값을 고른다.
+1b. 균형 가중치: 고른 alpha 의 hybrid 에 코치 점수 가중치 BALANCE_GRID 를 돌린다. 부위 엔트로피가
+    같은 개발 seed 의 「규칙만」 이상인 값 가운데 가장 작은 것을 고른다(앱의 코치 규칙만큼은 고르게).
 2. 본 실험: 시험 seed(100~109)에서 네 시나리오 x 일곱 방식. 조율에 쓴 seed 는 다시 쓰지 않는다.
 """
 
@@ -30,6 +32,7 @@ TUNE_GRID = {
     "shared": [0.1, 0.3, 1.0, 3.0],
     "hybrid": [0.1, 0.3, 1.0, 3.0],
 }
+BALANCE_GRID = [0.0, 0.25, 0.5, 1.0, 2.0, 4.0]   # hybrid 의 코치 점수 가중치
 CURVE_K = 40      # 사용자의 k 번째 세션 곡선을 몇 번째까지 남길지
 
 
@@ -98,7 +101,19 @@ def main():
     best = {k: max((f"{k}:{v:g}" for v in vs), key=lambda p: means[p]) for k, vs in TUNE_GRID.items()}
     print("tuning", means.round(4).to_dict(), "->", best, f"{time.time() - t0:.0f}s")
 
-    specs = ["random", "rule", "eps:0.2", best["eps"], best["shared"], best["hybrid"], "oracle"]
+    bal_jobs = [(f"{best['hybrid']}:{b:g}", s, "main") for b in BALANCE_GRID for s in dev]
+    bal_jobs += [("rule", s, "main") for s in dev]
+    bal, _ = run_jobs(bal_jobs, a.procs)
+    bal.to_csv(RESULTS / "balance.csv", index=False)
+    bm = bal.groupby("policy")[["exp_reward", "part_entropy"]].mean()
+    target = bm.loc["rule", "part_entropy"]
+    ok = [b for b in BALANCE_GRID if bm.loc[f"{best['hybrid']}:{b:g}", "part_entropy"] >= target]
+    chosen = min(ok) if ok else max(BALANCE_GRID)
+    best["balance"] = f"{best['hybrid']}:{chosen:g}"
+    print("balance", bm.round(4).to_dict(), "target", round(target, 4), "->", best["balance"],
+          "" if ok else "(목표에 못 미침, 격자 최댓값)", f"{time.time() - t0:.0f}s")
+
+    specs = ["random", "rule", "eps:0.2", best["eps"], best["shared"], best["hybrid"], best["balance"], "oracle"]
     specs = list(dict.fromkeys(specs))   # 앱 값 0.2 가 조율 결과와 같으면 한 번만
     test_jobs = [(p, s, sc) for sc in ["main", "shipped", "no_pref", "strong_pref"] for p in specs for s in test]
     runs, curves = run_jobs(test_jobs, a.procs)

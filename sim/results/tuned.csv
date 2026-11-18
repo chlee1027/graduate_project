@@ -2,3 +2,4 @@
 eps,eps:0.7
 shared,shared:1
 hybrid,hybrid:1
+balance,hybrid:1:0.25

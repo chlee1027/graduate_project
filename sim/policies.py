@@ -10,15 +10,10 @@ from typing import Dict, List
 
 import numpy as np
 
+from app.services import linucb as L
+from app.services.linucb import D_SHARED, D_USER
 from app.services.recommender_bandit_db import select_action
 
-LEVELS = ["beginner", "intermediate", "advanced"]
-INTENSITIES = ["low", "medium", "high"]
-MAJOR_PARTS = ["legs", "chest", "back", "shoulder", "arms", "core", "cardio", "full_body"]
-
-
-def _split(s):
-    return [p.strip() for p in (s or "").split(",") if p.strip()]
 
 
 class Policy:
@@ -86,39 +81,10 @@ class OraclePolicy(Policy):
 
 
 # ---------------------------------------------------------------------------
-# 특징
+# LinUCB: 특징과 hybrid 계산은 앱과 같은 app/services/linucb.py 를 쓴다
 # ---------------------------------------------------------------------------
-def context_vec(state: Dict) -> np.ndarray:
-    lvl = [1.0 if state["experience_level"] == l else 0.0 for l in LEVELS]
-    return np.array([1.0, *lvl, state["fatigue"] / 5, state["available_minutes"] / 60,
-                     state["recent_adherence_7d"]])
-
-
-def plan_vec(c: Dict, hist: Dict) -> np.ndarray:
-    inten = [1.0 if c["intensity"] == i else 0.0 for i in INTENSITIES]
-    parts = set(_split(c["target_parts"]))
-    major = [1.0 if p in parts else 0.0 for p in MAJOR_PARTS]
-    repeat = sum(1 for pid in hist["recent_plan_ids"] if pid == c["plan_id"]) / 2
-    return np.array([*inten, *major, 1.0 if c.get("is_stretching") else 0.0, c["minutes"] / 30,
-                     c.get("priority_score", 0) / 100, repeat])
-
-
-def user_vec(c: Dict) -> np.ndarray:
-    """사용자마다 따로 배우는 특징: 강도와 부위. 개인의 체력·선호를 잡으라고 둔다."""
-    inten = [1.0 if c["intensity"] == i else 0.0 for i in INTENSITIES]
-    parts = set(_split(c["target_parts"]))
-    return np.array([*inten, *[1.0 if p in parts else 0.0 for p in MAJOR_PARTS]])
-
-
 def shared_feats(state, cands, hist) -> np.ndarray:
-    cx = context_vec(state)
-    return np.stack([np.outer(cx, plan_vec(c, hist)).ravel() for c in cands])
-
-
-_CTX_DIM = 7     # 1, 숙련도 셋, 피로도, 가용 시간, 최근 순응도
-_PLAN_DIM = 15   # 강도 셋, 대분류 부위 여덟, 스트레칭, 시간, 우선순위 점수, 최근 반복
-D_SHARED = _CTX_DIM * _PLAN_DIM
-D_USER = 11
+    return L.shared_feats(state, cands, hist["recent_plan_ids"])
 
 
 class LinUCBShared(Policy):
@@ -149,68 +115,39 @@ class LinUCBShared(Policy):
 
 
 class HybridLinUCB(Policy):
-    """공유 모형 + 사용자마다 작은 모형 (Li et al., WWW 2010 의 Algorithm 2, 「운동별」 몫을 「사용자별」로).
+    """공유 모형 + 사용자마다 작은 모형. 앱의 추천 엔진과 같은 계산(app/services/linucb.py).
 
-    z: 공유 특징(D_SHARED), x: 사용자 특징(D_USER).
-    점수 = z^T beta0 + x^T theta_u + alpha * sqrt(s),
-    s = z^T A0^-1 z - 2 z^T A0^-1 B_u^T A_u^-1 x + x^T A_u^-1 x + x^T A_u^-1 B_u A0^-1 B_u^T A_u^-1 x.
-    tests/test_sim.py 가 이 계산을 [z; x] 를 이은 한 번의 능형 회귀와 맞춰 본다.
+    balance 는 코치 점수(최근 덜 한 부위일수록 큼)에 거는 고정 가중치다. 0 이면 보상만 본다.
     """
 
-    def __init__(self, seed: int, alpha: float = 0.3, lam: float = 1.0):
-        self.alpha = alpha
-        self.name = f"linucb_hybrid_{alpha:g}"
+    def __init__(self, seed: int, alpha: float = 0.3, balance: float = 0.0, lam: float = 1.0):
+        self.alpha, self.balance, self.lam = alpha, balance, lam
+        self.name = f"linucb_hybrid_{alpha:g}" + (f"_bal{balance:g}" if balance else "")
         super().__init__(seed)
-        self.lam = lam
-        self.A0 = np.eye(D_SHARED) * lam
-        self.A0_inv = np.eye(D_SHARED) / lam
-        self.b0 = np.zeros(D_SHARED)
-        self.users: Dict[str, dict] = {}
+        self.shared = L.SharedState(lam=lam)
+        self.A0_inv = np.linalg.inv(self.shared.A0)
+        self.users: Dict[str, L.UserState] = {}
 
-    def _u(self, user_id):
+    def _u(self, user_id) -> L.UserState:
         if user_id not in self.users:
-            self.users[user_id] = {"A": np.eye(D_USER) * self.lam, "B": np.zeros((D_USER, D_SHARED)),
-                                   "b": np.zeros(D_USER)}
+            self.users[user_id] = L.UserState(lam=self.lam)
         return self.users[user_id]
 
     def scores(self, user_id, Z, X):
-        u = self._u(user_id)
-        Au_inv = np.linalg.inv(u["A"])
-        beta0 = self.A0_inv @ self.b0
-        theta = Au_inv @ (u["b"] - u["B"] @ beta0)
-        C = self.A0_inv @ u["B"].T @ Au_inv                         # (D_SHARED, D_USER)
-        Dm = Au_inv @ u["B"] @ self.A0_inv @ u["B"].T @ Au_inv      # (D_USER, D_USER)
-        s = (np.einsum("ij,jk,ik->i", Z, self.A0_inv, Z)
-             - 2 * np.einsum("ij,jk,ik->i", Z, C, X)
-             + np.einsum("ij,jk,ik->i", X, Au_inv, X)
-             + np.einsum("ij,jk,ik->i", X, Dm, X))
-        mean = Z @ beta0 + X @ theta
-        return mean, s
+        return L.scores(self.shared, self._u(user_id), Z, X, self.A0_inv)
 
     def select(self, user_id, state, cands, hist):
-        Z = shared_feats(state, cands, hist)
-        X = np.stack([user_vec(c) for c in cands])
-        mean, s = self.scores(user_id, Z, X)
-        return _argmax_random(mean + self.alpha * np.sqrt(np.maximum(s, 0)), self.rng)
+        res = L.select(self.shared, self._u(user_id), state, cands, hist["recent_plan_ids"],
+                       self.alpha, self.balance, rng=self.rng, A0_inv=self.A0_inv)
+        return res["index"]
 
     def observe(self, user_id, z, x, reward):
-        u = self._u(user_id)
-        Au_inv = np.linalg.inv(u["A"])
-        BtAi = u["B"].T @ Au_inv
-        self.A0 += BtAi @ u["B"]
-        self.b0 += BtAi @ u["b"]
-        u["A"] += np.outer(x, x)
-        u["B"] += np.outer(x, z)
-        u["b"] += reward * x
-        Au_inv = np.linalg.inv(u["A"])
-        BtAi = u["B"].T @ Au_inv
-        self.A0 += np.outer(z, z) - BtAi @ u["B"]
-        self.b0 += reward * z - BtAi @ u["b"]
-        self.A0_inv = np.linalg.inv(self.A0)
+        L.observe(self.shared, self._u(user_id), z, x, reward)
+        self.A0_inv = np.linalg.inv(self.shared.A0)
 
     def update(self, user_id, state, cands, idx, hist, reward):
-        z = shared_feats(state, [cands[idx]], hist)[0]
-        self.observe(user_id, z, user_vec(cands[idx]), reward)
+        z, x = L.features_for(state, cands[idx], hist["recent_plan_ids"])
+        self.observe(user_id, z, x, reward)
 
 
 def _argmax_random(p: np.ndarray, rng: random.Random) -> int:
@@ -219,7 +156,7 @@ def _argmax_random(p: np.ndarray, rng: random.Random) -> int:
 
 
 def make_policy(spec: str, seed: int) -> Policy:
-    """'random' | 'rule' | 'oracle' | 'eps:0.2' | 'shared:0.3' | 'hybrid:0.3'"""
+    """'random' | 'rule' | 'oracle' | 'eps:0.2' | 'shared:0.3' | 'hybrid:0.3' | 'hybrid:1:0.5'(alpha:균형 가중치)"""
     kind, _, arg = spec.partition(":")
     if kind == "random":
         return RandomPolicy(seed)
@@ -232,5 +169,6 @@ def make_policy(spec: str, seed: int) -> Policy:
     if kind == "shared":
         return LinUCBShared(seed, float(arg))
     if kind == "hybrid":
-        return HybridLinUCB(seed, float(arg))
+        alpha, _, bal = arg.partition(":")
+        return HybridLinUCB(seed, float(alpha), float(bal or 0))
     raise ValueError(spec)
