@@ -1,5 +1,4 @@
-from typing import List, Dict
-import copy
+from typing import Dict, Iterable, List
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.models import ExercisePlan, ExerciseLog
@@ -47,31 +46,26 @@ def get_allowed_intensities(experience_level: str, fatigue: int) -> List[str]:
         allowed = ["low"]
     return allowed
 
-def adjust_plan_dynamically(plan_obj: ExercisePlan, experience_level: str, fatigue: int) -> Dict:
+PLAN_FIELDS = (
+    "plan_id", "name", "location", "type", "required_equipment", "target_parts",
+    "sub_target_parts", "avoid_if_pain", "intensity", "minutes", "sets", "reps",
+    "target_rpe", "rest_seconds", "met_value", "is_stretching", "description", "tip",
+    "video_url",
+)
+
+
+def plan_to_dict(plan_obj: ExercisePlan) -> Dict:
+    """ORM 행을 후보 생성이 쓰는 딕셔너리로 바꾼다. 시뮬레이터는 같은 모양의 딕셔너리를 바로 넘긴다."""
+    return {field: getattr(plan_obj, field) for field in PLAN_FIELDS}
+
+
+def adjust_plan_dynamically(plan_in: Dict, experience_level: str, fatigue: int) -> Dict:
     """
     숙련도와 피로도에 따라 세트, 횟수, 휴식 시간을 동적으로 조정합니다.
     """
-    plan = {
-        "plan_id": plan_obj.plan_id,
-        "name": plan_obj.name,
-        "location": plan_obj.location,
-        "type": plan_obj.type,
-        "required_equipment": plan_obj.required_equipment,
-        "target_parts": plan_obj.target_parts,
-        "sub_target_parts": plan_obj.sub_target_parts,
-        "avoid_if_pain": plan_obj.avoid_if_pain,
-        "intensity": plan_obj.intensity,
-        "minutes": plan_obj.minutes,
-        "sets": plan_obj.sets,
-        "reps": plan_obj.reps,
-        "target_rpe": plan_obj.target_rpe,
-        "rest_seconds": plan_obj.rest_seconds or 60,
-        "met_value": plan_obj.met_value,
-        "is_stretching": plan_obj.is_stretching,
-        "description": plan_obj.description,
-        "tip": plan_obj.tip,
-        "video_url": plan_obj.video_url
-    }
+    plan = {field: plan_in.get(field) for field in PLAN_FIELDS}
+    plan["rest_seconds"] = plan["rest_seconds"] or 60
+    plan["is_stretching"] = bool(plan["is_stretching"])
 
     # 1. 숙련도별 기본 조정
     if experience_level == "beginner":
@@ -129,8 +123,9 @@ def get_detailed_usage_stats(user_id: str, db: Session) -> Dict[str, Dict[str, i
 
     return {"major": major_counts, "sub": sub_counts}
 
-def generate_candidates(state: Dict, db: Session) -> List[Dict]:
-    user_id = state["user_id"]
+def build_candidates(plans: Iterable[Dict], state: Dict, usage_stats: Dict[str, Dict[str, int]]) -> List[Dict]:
+    """DB 없이 후보를 만든다. plans 는 plan_to_dict 모양의 딕셔너리, usage_stats 는
+    get_detailed_usage_stats 와 같은 모양({"major": {...}, "sub": {...}})이다."""
     location = state["location"]
     available_minutes = state["available_minutes"]
     fatigue = state["fatigue"]
@@ -145,38 +140,36 @@ def generate_candidates(state: Dict, db: Session) -> List[Dict]:
 
     allowed_intensities = get_allowed_intensities(experience_level, fatigue)
 
-    query = db.query(ExercisePlan).filter(ExercisePlan.location == location)
-    
-    # 피로도가 극심하면 스트레칭 강제 권장
-    if fatigue >= 5:
-        query = query.filter(ExercisePlan.is_stretching == True)
-    elif want_stretching:
-        query = query.filter(ExercisePlan.is_stretching == True)
-    else:
-        query = query.filter(
-            ExercisePlan.intensity.in_(allowed_intensities),
-            ExercisePlan.is_stretching == False
-        )
+    # 예전에는 SQL 로 걸던 장소·강도·스트레칭 필터. 시뮬레이터도 같은 규칙을 쓰도록 여기로 옮겼다.
+    stretching_only = fatigue >= 5 or want_stretching
+    all_plans = []
+    for ex in plans:
+        if ex["location"] != location:
+            continue
+        if stretching_only:
+            if not ex.get("is_stretching"):
+                continue
+        elif ex.get("is_stretching") or ex["intensity"] not in allowed_intensities:
+            continue
+        all_plans.append(ex)
 
-    all_plans = query.all()
     candidates = []
 
-    usage_stats = get_detailed_usage_stats(user_id, db)
     major_usage = usage_stats["major"]
     sub_usage = usage_stats["sub"]
-    
+
     all_major_parts = ["legs", "chest", "back", "shoulder", "arms", "core"]
     major_priority = sorted(all_major_parts, key=lambda x: major_usage.get(x, 0))
     
     for ex in all_plans:
         # 1. 직접적 통증 부위 필터링 (완전 제외)
-        ex_avoid_parts = set([p.strip() for p in (ex.avoid_if_pain or "").split(",") if p.strip()])
+        ex_avoid_parts = set([p.strip() for p in (ex.get("avoid_if_pain") or "").split(",") if p.strip()])
         if pain_parts.intersection(ex_avoid_parts):
             continue
 
         # 2. 간접적 통증 영향권 점수 감점 (Smart Filtering)
         indirect_penalty = 0
-        ex_target_parts = [p.strip() for p in ex.target_parts.split(",") if p.strip()]
+        ex_target_parts = [p.strip() for p in ex["target_parts"].split(",") if p.strip()]
         for pain in pain_parts:
             affected = PAIN_INDIRECT_IMPACT_MAP.get(pain, [])
             for target in ex_target_parts:
@@ -184,7 +177,7 @@ def generate_candidates(state: Dict, db: Session) -> List[Dict]:
                     indirect_penalty += 30 # 큰 감점을 주어 하단으로 밀어냄
 
         # 3. 장비 체크
-        if not is_equipment_satisfied(ex.required_equipment, equipment_available):
+        if not is_equipment_satisfied(ex.get("required_equipment"), equipment_available):
             continue
 
         # 4. 동적 조정 (피로도/숙련도 반영)
@@ -204,7 +197,7 @@ def generate_candidates(state: Dict, db: Session) -> List[Dict]:
                 max_major_score = max(max_major_score, score)
         
         # 소분류 점수
-        ex_sub_parts = [s.strip() for s in (ex.sub_target_parts or "").split(",") if s.strip()]
+        ex_sub_parts = [s.strip() for s in (ex.get("sub_target_parts") or "").split(",") if s.strip()]
         sub_bonus = 0
         for s in ex_sub_parts:
             count = sub_usage.get(s, 0)
@@ -272,3 +265,9 @@ def generate_candidates(state: Dict, db: Session) -> List[Dict]:
 
     candidates.sort(key=lambda x: x.get("priority_score", 0), reverse=True)
     return candidates
+
+
+def generate_candidates(state: Dict, db: Session) -> List[Dict]:
+    plans = [plan_to_dict(p) for p in db.query(ExercisePlan).filter(ExercisePlan.location == state["location"]).all()]
+    usage_stats = get_detailed_usage_stats(state["user_id"], db)
+    return build_candidates(plans, state, usage_stats)
