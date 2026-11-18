@@ -55,7 +55,7 @@
 
 *   **Framework**: FastAPI (Python 3.12)
 *   **Database**: PostgreSQL (Docker Compose)
-*   **추천 엔진**: Contextual Bandit (ε-greedy, `EPSILON = 0.2`)
+*   **추천 엔진**: ε-greedy 밴딧(`EPSILON = 0.2`). 사용자별·운동별 보상 평균에 손 규칙 점수(부위 우선순위, 피로도·시간 가산점)를 더해 고른다
 *   **LLM 연동**: Google Gemini API (`gemini-3.5-flash`). 서버가 뜰 때 `list_models()` 로 사용 가능한 모델을 조회해 우선순위 목록의 위에서부터 고릅니다.
 
 ---
@@ -107,6 +107,28 @@ npx expo start --web
 기록(`created_at`)은 `timestamptz` 로 UTC 에 저장하고, 스트릭과 주간 활동은 한국 날짜로 셉니다. 변환은 `app/core/timezone.py` 한곳에 모여 있습니다.
 
 PostgreSQL 의 `timezone(zone, x)` 는 인자 타입에 따라 방향이 뒤집힙니다. `timezone('Asia/Seoul', timestamptz)` 는 서울 벽시계 값을 주지만, `timezone('Asia/Seoul', timestamp)` 는 그 값을 서울 시각으로 해석해 버립니다. 두 번 겹쳐 걸면 9시간을 더하는 대신 빼게 되므로 한 번만 겁니다.
+
+---
+
+## 추천 방식 시뮬레이션 비교
+
+가상 사용자 200명(seed 마다)에게 앱의 후보 생성·보상 코드를 그대로 써서 추천 방식을 비교했다. 기본 시나리오, 시험 seed 10개 평균:
+
+| 방식 | 세션당 기대 보상 | regret |
+|---|---|---|
+| 무작위 | 0.977 | 0.174 |
+| 지금 앱 (ε-greedy, ε=0.2) | 0.964 | 0.185 |
+| LinUCB 공유 (α=1) | 1.014 | 0.133 |
+| LinUCB hybrid (α=1) | 1.039 | 0.108 |
+| 오라클 (상한) | 1.144 | 0 |
+
+지금 방식은 이미 해 본 운동에 묶여 무작위보다 낮았고(10/10 seed), hybrid LinUCB 는 네 시나리오 모두에서 가장 높았다. 가정·설계·한계는 [docs/simulation_eval.md](docs/simulation_eval.md).
+
+```bash
+python -m pytest tests
+python -m sim.run_experiments   # 16코어에서 약 8분
+python -m sim.plot_results
+```
 
 ---
 
