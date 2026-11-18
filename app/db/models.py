@@ -119,7 +119,7 @@ class LinUCBUser(Base):
 
 
 class ChatbotCall(Base):
-    """AI 코치(Claude) 호출 기록. 공개 데모에서 호출 수를 제한하는 데만 쓴다(app/services/rate_limit.py).
+    """호출 기록(AI 코치·가입·로그인 시도). 공개 데모에서 호출 수를 제한하는 데만 쓴다(app/services/rate_limit.py).
 
     IP 는 그대로 두지 않고 RATE_LIMIT_SALT 를 붙인 SHA-256 앞 16자리만 남긴다.
     """
@@ -129,3 +129,23 @@ class ChatbotCall(Base):
     ip_hash = Column(String, nullable=False, index=True)
     endpoint = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class Account(Base):
+    """로그인 계정. users 와 1:1. 비밀번호는 scrypt 해시만 둔다(app/services/auth.py)."""
+    __tablename__ = "accounts"
+
+    user_id = Column(String, ForeignKey("users.user_id"), primary_key=True)
+    username = Column(String, nullable=False, unique=True, index=True)
+    password_hash = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class AuthSession(Base):
+    """로그인한 기기 하나. 토큰 원문은 기기만 갖고, 여기에는 SHA-256 만 둔다."""
+    __tablename__ = "auth_sessions"
+
+    token_hash = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.user_id"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False)
+    last_used_at = Column(DateTime(timezone=True), nullable=False)

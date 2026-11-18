@@ -1,5 +1,6 @@
 import axios from "axios";
 import { Platform } from "react-native";
+import { useUserStore } from "../store/userStore";
 
 // API 주소 정하는 순서
 // 1. EXPO_PUBLIC_API_URL 이 있으면 그 주소 (빌드할 때 박힌다)
@@ -24,5 +25,22 @@ const client = axios.create({
     "Bypass-Tunnel-Reminder": "true", // 로컬터널 경고 페이지 우회용 헤더
   },
 });
+
+// 로그인 토큰을 모든 요청에 붙인다
+client.interceptors.request.use((config) => {
+  const token = useUserStore.getState().token;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+// 토큰이 만료되거나 지워졌으면 로그아웃 상태로 돌린다(로그인 시도 자체의 401 은 화면이 처리)
+client.interceptors.response.use(
+  (r) => r,
+  (error) => {
+    const url: string = error?.config?.url || "";
+    if (error?.response?.status === 401 && !url.includes("/api/auth/login")) useUserStore.getState().reset();
+    return Promise.reject(error);
+  }
+);
 
 export default client;

@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     CHATBOT_PER_IP_PER_HOUR: int = 10
     CHATBOT_PER_DAY: int = 200
     RATE_LIMIT_SALT: str = "local-dev-salt"
+    # 계정: IP 당 한 시간 가입·로그인 시도 수, 로그인 유지 기간(일)
+    SIGNUPS_PER_IP_PER_HOUR: int = 5
+    LOGINS_PER_IP_PER_HOUR: int = 20
+    SESSION_DAYS: int = 90
 
     class Config:
         env_file = ".env"

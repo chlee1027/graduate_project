@@ -6,12 +6,14 @@ from app.db.models import User
 from app.services.streak_service import get_current_streak
 
 from app.schemas.request_response import UserDetailResponse, UserUpdateRequest
+from app.services.auth import ensure_self, require_user
 
 router = APIRouter()
 
 
 @router.get("/{user_id}/status")
-def get_user_status(user_id: str, db: Session = Depends(get_db)):
+def get_user_status(user_id: str, db: Session = Depends(get_db), auth_user: str = Depends(require_user)):
+    ensure_self(auth_user, user_id)
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -27,7 +29,8 @@ def get_user_status(user_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{user_id}", response_model=UserDetailResponse)
-def get_user_details(user_id: str, db: Session = Depends(get_db)):
+def get_user_details(user_id: str, db: Session = Depends(get_db), auth_user: str = Depends(require_user)):
+    ensure_self(auth_user, user_id)
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -49,7 +52,8 @@ def get_user_details(user_id: str, db: Session = Depends(get_db)):
 
 
 @router.put("/{user_id}")
-def update_user_details(user_id: str, request: UserUpdateRequest, db: Session = Depends(get_db)):
+def update_user_details(user_id: str, request: UserUpdateRequest, db: Session = Depends(get_db), auth_user: str = Depends(require_user)):
+    ensure_self(auth_user, user_id)
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

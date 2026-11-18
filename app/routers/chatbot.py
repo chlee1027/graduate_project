@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.database import get_db
 from app.services.rate_limit import check_and_record
+from app.services.auth import ensure_self, require_user
 
 router = APIRouter()
 
@@ -111,7 +112,7 @@ class ExerciseGuideRequest(BaseModel):
     target_parts: str
 
 @router.post("/ask")
-def ask_coach(request: ChatRequest, http: Request, db: Session = Depends(get_db)):
+def ask_coach(request: ChatRequest, http: Request, db: Session = Depends(get_db), _user: str = Depends(require_user)):
     if get_client() is None:
         raise HTTPException(status_code=503, detail="AI 코치가 아직 연결되지 않았어요(API 키 없음).")
     check_and_record(db, http, "ask")
@@ -123,7 +124,7 @@ def ask_coach(request: ChatRequest, http: Request, db: Session = Depends(get_db)
 
 
 @router.post("/exercise-guide")
-def get_exercise_guide(request: ExerciseGuideRequest, http: Request, db: Session = Depends(get_db)):
+def get_exercise_guide(request: ExerciseGuideRequest, http: Request, db: Session = Depends(get_db), _user: str = Depends(require_user)):
     if get_client() is None:
         raise HTTPException(status_code=503, detail="AI 코치가 아직 연결되지 않았어요(API 키 없음).")
     check_and_record(db, http, "exercise-guide")

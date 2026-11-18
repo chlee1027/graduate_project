@@ -10,12 +10,14 @@ from app.services.reward_service import calculate_reward
 from app.services.recommender_bandit_db import update_bandit_db
 from app.services.linucb_store import update_hybrid_db
 from app.services.streak_service import get_current_streak
+from app.services.auth import ensure_self, require_user
 
 router = APIRouter()
 
 
 @router.post("/", response_model=RewardResponse)
-def reward(request: RewardRequest, db: Session = Depends(get_db)):
+def reward(request: RewardRequest, db: Session = Depends(get_db), auth_user: str = Depends(require_user)):
+    ensure_self(auth_user, request.user_id)
     recommendation = (
         db.query(Recommendation)
         .filter(Recommendation.recommendation_id == request.recommendation_id)
@@ -23,6 +25,7 @@ def reward(request: RewardRequest, db: Session = Depends(get_db)):
     )
     if not recommendation:
         raise HTTPException(status_code=404, detail="Recommendation not found")
+    ensure_self(auth_user, recommendation.user_id)
 
     matched_log = (
         db.query(ExerciseLog)

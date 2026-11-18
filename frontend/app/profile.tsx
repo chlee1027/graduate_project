@@ -13,7 +13,7 @@ const PART: Record<string, string> = {
 };
 
 export default function Profile() {
-  const { userId, reset } = useUserStore();
+  const { userId, username, reset } = useUserStore();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
@@ -71,7 +71,12 @@ export default function Profile() {
   };
 
   const logout = () =>
-    confirmAction("로그아웃", "이 기기에서 로그아웃할까요? 기록은 서버에 남아요.", "로그아웃", () => {
+    confirmAction("로그아웃", "이 기기에서 로그아웃할까요? 기록은 서버에 남아 다시 로그인하면 이어져요.", "로그아웃", async () => {
+      try {
+        await client.post("/api/auth/logout");
+      } catch {
+        // 서버에 못 닿아도 이 기기의 로그인은 지운다
+      }
       reset();
       router.replace("/");
     });
@@ -100,6 +105,7 @@ export default function Profile() {
         style={{ marginTop: 28 }}
       >
         <View className="border-t border-line">
+          <Row label="아이디" value={username || "-"} />
           <Row label="나이" value={`${user?.age}세`} />
           <Row label="키 · 몸무게" value={`${user?.height_cm}cm · ${user?.weight_kg}kg`} />
           <Row label="목표" value={GOAL[user?.goal] || user?.goal} />

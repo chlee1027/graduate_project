@@ -4,7 +4,10 @@ from pydantic import BaseModel, Field
 
 
 class OnboardingRequest(BaseModel):
-    user_id: str
+    """가입 + 기본 정보. user_id 는 서버가 만든다(예전 앱이 보내는 값은 무시)."""
+    username: str
+    password: str
+    user_id: Optional[str] = None
     age: int
     sex: Literal["male", "female", "other"]
     height_cm: float
@@ -19,8 +22,21 @@ class OnboardingRequest(BaseModel):
 
 class OnboardingResponse(BaseModel):
     user_id: str
+    username: str
+    token: str
     message: str
     initial_plan: dict
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    user_id: str
+    username: str
+    token: str
 
 
 class RecommendRequest(BaseModel):

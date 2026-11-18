@@ -2,7 +2,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import onboarding, recommend, log, reward, user, debug, stats, chatbot
+from app.routers import auth, onboarding, recommend, log, reward, user, debug, stats, chatbot
 from app.db.database import Base, engine
 
 Base.metadata.create_all(bind=engine)
@@ -17,6 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(onboarding.router, prefix="/api/onboarding", tags=["onboarding"])
 app.include_router(recommend.router, prefix="/api/recommend", tags=["recommend"])
 app.include_router(log.router, prefix="/api/log", tags=["log"])

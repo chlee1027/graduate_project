@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   ViewStyle,
@@ -189,6 +190,48 @@ export function Row({ label, value, onPress, last }: { label: string; value?: Re
     </View>
   );
   return onPress ? <TouchableOpacity activeOpacity={0.75} onPress={onPress}>{body}</TouchableOpacity> : body;
+}
+
+export function Field({
+  label,
+  value,
+  onChange,
+  secure,
+  placeholder,
+  hint,
+  error,
+  onSubmit,
+}: {
+  label: string;
+  value: string;
+  onChange: (t: string) => void;
+  secure?: boolean;
+  placeholder?: string;
+  hint?: string;
+  error?: string | null;
+  onSubmit?: () => void;
+}) {
+  return (
+    <View className="mb-4">
+      <Label>{label}</Label>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        secureTextEntry={secure}
+        placeholder={placeholder}
+        placeholderTextColor="#A1A1AA"
+        autoCapitalize="none"
+        autoCorrect={false}
+        onSubmitEditing={onSubmit}
+        className={`h-12 px-4 rounded-xl border text-[16px] text-ink ${error ? "border-danger" : "border-line"}`}
+      />
+      {error ? (
+        <Text className="text-[13px] text-danger mt-1.5">{error}</Text>
+      ) : hint ? (
+        <Text className="text-[13px] text-zinc-500 mt-1.5">{hint}</Text>
+      ) : null}
+    </View>
+  );
 }
 
 export function Stat({ label, value, unit }: { label: string; value: string | number; unit?: string }) {

@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -8,6 +8,8 @@ from app.core.timezone import KST, kst_date, today_kst
 from app.db.database import get_db
 from app.db.models import ExerciseLog, ExercisePlan, User
 from app.services.streak_service import get_current_streak
+from app.services import heatmap as hm
+from app.services.auth import ensure_self, require_user
 
 router = APIRouter()
 
@@ -20,7 +22,8 @@ def _workout_type(is_stretching: bool, location: str) -> str:
 
 
 @router.get("/{user_id}/summary")
-def get_user_stats_summary(user_id: str, db: Session = Depends(get_db)):
+def get_user_stats_summary(user_id: str, db: Session = Depends(get_db), auth_user: str = Depends(require_user)):
+    ensure_self(auth_user, user_id)
     """
     사용자의 전체 통계 및 주간 활동 현황을 가져옵니다.
     """
@@ -113,7 +116,8 @@ def get_user_stats_summary(user_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{user_id}/weekly-details")
-def get_weekly_workout_details(user_id: str, db: Session = Depends(get_db)):
+def get_weekly_workout_details(user_id: str, db: Session = Depends(get_db), auth_user: str = Depends(require_user)):
+    ensure_self(auth_user, user_id)
     """
     이번 주 수행한 운동의 상세 목록을 가져옵니다.
     """
@@ -154,3 +158,27 @@ def get_weekly_workout_details(user_id: str, db: Session = Depends(get_db)):
         })
 
     return result
+
+
+@router.get("/{user_id}/heatmap")
+def get_heatmap(user_id: str, weeks: int = Query(20, ge=1, le=53), db: Session = Depends(get_db), auth_user: str = Depends(require_user)):
+    ensure_self(auth_user, user_id)
+    """잔디 차트: 최근 weeks 주(월요일 시작) 하루 한 칸의 완료 횟수·운동 분, 현재·최장 연속 운동일."""
+    if not db.query(User).filter(User.user_id == user_id).first():
+        raise HTTPException(status_code=404, detail="User not found")
+    rows = (
+        db.query(ExerciseLog.created_at, ExerciseLog.actual_minutes)
+        .filter(ExerciseLog.user_id == user_id, ExerciseLog.completed == True)
+        .all()
+    )
+    totals = hm.daily_totals((r.created_at, r.actual_minutes) for r in rows if r.created_at)
+    today = today_kst()
+    days = hm.heatmap(totals, today, weeks)
+    return {
+        "weeks": weeks,
+        "start": days[0]["date"],
+        "end": today.isoformat(),
+        "days": days,
+        "active_days": sum(1 for d in days if d["count"]),
+        **hm.streaks(totals.keys(), today),
+    }

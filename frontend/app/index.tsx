@@ -5,23 +5,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { useUserStore } from "../src/store/userStore";
 import client from "../src/api/client";
 import { Button, Card, colors, Screen, Section, Stat } from "../src/ui";
+import { Heatmap } from "../src/ui/Heatmap";
 
-const DAY_TONE: Record<string, string> = {
-  gym: colors.brand,
-  home: colors.brand,
-  stretch: "#A7C8B9",
-};
+const HEAT_WEEKS = 20;
 
 export default function Home() {
   const { userId, isOnboarded } = useUserStore();
   const router = useRouter();
   const [status, setStatus] = useState<any>(null);
+  const [heat, setHeat] = useState<any>(null);
 
   const fetchStatus = useCallback(async () => {
     if (!userId || !isOnboarded) return;
     try {
-      const response = await client.get(`/api/stats/${userId}/summary`);
-      setStatus(response.data);
+      const [summary, heatmap] = await Promise.all([
+        client.get(`/api/stats/${userId}/summary`),
+        client.get(`/api/stats/${userId}/heatmap`, { params: { weeks: HEAT_WEEKS } }),
+      ]);
+      setStatus(summary.data);
+      setHeat(heatmap.data);
     } catch (error) {
       console.error("Failed to fetch user status:", error);
     }
@@ -36,7 +38,16 @@ export default function Home() {
 
   if (!isOnboarded) {
     return (
-      <Screen edges={["top", "bottom"]} footer={<Button label="시작하기" onPress={() => router.push("/onboarding")} />}>
+      <Screen
+        edges={["top", "bottom"]}
+        footer={
+          <View>
+            <Button label="시작하기" onPress={() => router.push("/onboarding")} />
+            <View className="h-1" />
+            <Button label="이미 계정이 있어요 · 로그인" variant="ghost" onPress={() => router.push("/login")} />
+          </View>
+        }
+      >
         <Stack.Screen options={{ headerShown: false }} />
         <View className="pt-16">
           <Text className="text-[13px] font-semibold text-brand mb-3">Fitness AI</Text>
@@ -89,9 +100,8 @@ export default function Home() {
 
       <Card>
         <View className="flex-row">
-          <Stat label="연속 운동" value={status?.current_streak ?? 0} unit="일" />
           <Stat label="이번 주" value={`${done}/${goal}`} unit="회" />
-          <Stat label="달성" value={pct} unit="%" />
+          <Stat label="주간 목표 달성" value={pct} unit="%" />
         </View>
         <View className="h-1.5 bg-canvas rounded-full mt-4 overflow-hidden">
           <View style={{ width: `${pct}%`, backgroundColor: colors.brand }} className="h-full rounded-full" />
@@ -104,37 +114,24 @@ export default function Home() {
         <Button label="코치에게 질문하기" variant="secondary" onPress={() => router.push("/chat")} />
       </View>
 
-      {status?.activity_chart ? (
+      {heat ? (
         <Section
-          label="최근 7일"
+          label="운동 기록"
           right={
             <TouchableOpacity onPress={() => router.push("/stats/weekly")}>
-              <Text className="text-[13px] text-zinc-500">기록 보기</Text>
+              <Text className="text-[13px] text-zinc-500">목록 보기</Text>
             </TouchableOpacity>
           }
           style={{ marginTop: 32 }}
         >
-          <View className="flex-row justify-between">
-            {status.activity_chart.map((day: any) => (
-              <View key={day.date} className="items-center">
-                <View
-                  style={{ backgroundColor: day.completed ? DAY_TONE[day.type] || colors.brand : colors.canvas }}
-                  className="w-9 h-9 rounded-lg"
-                />
-                <Text className={`text-[12px] mt-1.5 ${day.completed ? "text-ink font-semibold" : "text-zinc-400"}`}>{day.day_name}</Text>
-              </View>
-            ))}
-          </View>
-          <View className="flex-row mt-4">
-            <View className="flex-row items-center mr-4">
-              <View style={{ backgroundColor: colors.brand }} className="w-2.5 h-2.5 rounded-sm mr-1.5" />
-              <Text className="text-[12px] text-zinc-500">운동</Text>
+          <Card>
+            <View className="flex-row mb-4">
+              <Stat label="지금 연속" value={heat.current_streak} unit="일" />
+              <Stat label="가장 길게" value={heat.longest_streak} unit="일" />
+              <Stat label={`최근 ${HEAT_WEEKS}주`} value={heat.active_days} unit="일" />
             </View>
-            <View className="flex-row items-center">
-              <View style={{ backgroundColor: DAY_TONE.stretch }} className="w-2.5 h-2.5 rounded-sm mr-1.5" />
-              <Text className="text-[12px] text-zinc-500">스트레칭</Text>
-            </View>
-          </View>
+            <Heatmap days={heat.days} weeks={HEAT_WEEKS} />
+          </Card>
         </Section>
       ) : null}
     </Screen>

@@ -29,6 +29,9 @@ export default function Recommend() {
   const [stretching, setStretching] = useState(false);
   const [fatigue, setFatigue] = useState(2);
   const [minutes, setMinutes] = useState(30);
+  // 「운동 방법 보기」 시트: AI 설명을 부르고, 같은 운동이면 다시 부르지 않는다
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetPlan, setSheetPlan] = useState<string | null>(null);
   const [guide, setGuide] = useState<any>(null);
   const [guideLoading, setGuideLoading] = useState(false);
 
@@ -54,21 +57,20 @@ export default function Recommend() {
     }
   };
 
-  const openGuide = async () => {
+  const openGuide = () => {
     if (!rec) return;
+    const p = rec.selected_plan;
+    setSheetOpen(true);
+    if (sheetPlan === p.plan_id) return;
+    setSheetPlan(p.plan_id);
+    setGuide(null);
+
     setGuideLoading(true);
-    try {
-      const response = await client.post("/api/chatbot/exercise-guide", {
-        exercise_name: rec.selected_plan.name,
-        target_parts: rec.selected_plan.target_parts,
-      });
-      setGuide(response.data);
-    } catch (error) {
-      console.error(error);
-      notify("가이드를 불러오지 못했어요", errorMessage(error, "잠시 뒤에 다시 시도해 주세요."));
-    } finally {
-      setGuideLoading(false);
-    }
+    client
+      .post("/api/chatbot/exercise-guide", { exercise_name: p.name, target_parts: p.target_parts })
+      .then((r) => setGuide(r.data))
+      .catch((error) => setGuide({ error: errorMessage(error, "설명을 불러오지 못했어요. 잠시 뒤에 다시 시도해 주세요.") }))
+      .finally(() => setGuideLoading(false));
   };
 
   useEffect(() => {
@@ -149,15 +151,8 @@ export default function Recommend() {
                   <Text className="text-[14px] leading-[22px] text-zinc-700">{rec.reason}</Text>
                 </View>
               ) : null}
-              <View className="flex-row mt-4 -mx-1">
-                <View className="flex-1 mx-1">
-                  <Button label="운동 방법 보기" variant="secondary" onPress={openGuide} loading={guideLoading} />
-                </View>
-                {plan.video_url ? (
-                  <View className="flex-1 mx-1">
-                    <Button label="영상" variant="secondary" onPress={() => Linking.openURL(plan.video_url)} />
-                  </View>
-                ) : null}
+              <View className="mt-4">
+                <Button label="운동 방법 보기" variant="secondary" onPress={openGuide} />
               </View>
             </View>
           )}
@@ -183,21 +178,34 @@ export default function Recommend() {
         <Text className="text-[13px] text-zinc-500 mt-2">스트레칭은 회복 세션이라 주간 목표 횟수에는 넣지 않아요.</Text>
       ) : null}
 
-      <Modal visible={!!guide} animationType="slide" transparent onRequestClose={() => setGuide(null)}>
+      <Modal visible={sheetOpen} animationType="slide" transparent onRequestClose={() => setSheetOpen(false)}>
         <View className="flex-1 justify-end bg-black/40">
-          <View className="bg-white rounded-t-2xl h-[75%] w-full self-center" style={{ maxWidth: 480 }}>
+          <View className="bg-white rounded-t-2xl h-[85%] w-full self-center" style={{ maxWidth: 480 }}>
             <View className="flex-row justify-between items-center px-5 h-14 border-b border-line">
               <Text className="text-[16px] font-semibold text-ink">{plan?.name}</Text>
-              <TouchableOpacity onPress={() => setGuide(null)}>
+              <TouchableOpacity onPress={() => setSheetOpen(false)}>
                 <Text className="text-[15px] text-zinc-500">닫기</Text>
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 32 }}>
-              <PlainText text={guide?.guide_text || ""} />
-              <View className="mt-6">
-                <Button label="유튜브에서 자세 영상 찾기" variant="secondary" onPress={() => Linking.openURL(guide?.youtube_url)} />
+              <View>
+                {guideLoading ? (
+                  <View className="flex-row items-center py-4">
+                    <ActivityIndicator color={colors.muted} />
+                    <Text className="text-[14px] text-zinc-500 ml-2">설명을 쓰고 있어요</Text>
+                  </View>
+                ) : guide?.error ? (
+                  <Text className="text-[14px] text-zinc-500">{guide.error}</Text>
+                ) : (
+                  <PlainText text={guide?.guide_text || ""} />
+                )}
               </View>
-              <Text className="text-[12px] text-zinc-400 mt-4">AI 가 쓴 설명이에요. 운동 중 통증이 있으면 바로 멈추세요.</Text>
+              {guide?.youtube_url ? (
+                <View className="mt-6">
+                  <Button label="유튜브에서 자세 영상 찾기" variant="secondary" onPress={() => Linking.openURL(guide.youtube_url)} />
+                </View>
+              ) : null}
+              <Text className="text-[12px] text-zinc-400 mt-4">설명은 AI 가 썼어요. 운동 중 통증이 있으면 바로 멈추세요.</Text>
             </ScrollView>
           </View>
         </View>

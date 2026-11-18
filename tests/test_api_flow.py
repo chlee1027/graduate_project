@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.data.exercise_catalog import FINAL_EXERCISES
 from app.db.database import Base, get_db
 from app.db.models import ExercisePlan, LinUCBShared, LinUCBUser, Recommendation
-from app.routers import log, onboarding, recommend, reward
+from app.routers import auth, log, onboarding, recommend, reward, stats, user
 from app.services import linucb as L
 from app.services import linucb_store
 
@@ -31,10 +31,13 @@ def env(monkeypatch):
         db.commit()
 
     app = FastAPI()
+    app.include_router(auth.router, prefix="/api/auth")
     app.include_router(onboarding.router, prefix="/api/onboarding")
+    app.include_router(user.router, prefix="/api/user")
     app.include_router(recommend.router, prefix="/api/recommend")
     app.include_router(log.router, prefix="/api/log")
     app.include_router(reward.router, prefix="/api/reward")
+    app.include_router(stats.router, prefix="/api/stats")
 
     def _db():
         db = Session()
@@ -48,25 +51,31 @@ def env(monkeypatch):
     monkeypatch.setattr(reward, "get_current_streak", lambda db, uid: 0)
     client = TestClient(app)
     r = client.post("/api/onboarding/", json={
-        "user_id": "u1", "age": 25, "sex": "female", "height_cm": 165, "weight_kg": 55,
+        "username": "tester", "password": "pass1234", "age": 25, "sex": "female", "height_cm": 165, "weight_kg": 55,
         "goal": "fitness", "experience_level": "intermediate", "injuries": ["knee"],
         "weekly_available_days": 4, "place_preference": "home", "equipment": []})
-    assert r.status_code == 200
+    assert r.status_code == 200, r.text
+    global U1
+    U1 = r.json()["user_id"]
+    client.headers.update({"Authorization": "Bearer " + r.json()["token"]})
     return client, Session
+
+
+U1 = None   # env 가 가입시킨 사용자. user_id 는 서버가 만든다.
 
 
 def _session(client, fatigue=3, minutes=20):
     rec = client.post("/api/recommend/", json={
-        "user_id": "u1", "location": "home", "available_minutes": minutes, "fatigue": fatigue})
+        "user_id": U1, "location": "home", "available_minutes": minutes, "fatigue": fatigue})
     assert rec.status_code == 200, rec.text
     body = rec.json()
     plan = body["selected_plan"]
     lg = client.post("/api/log/", json={
-        "recommendation_id": body["recommendation_id"], "user_id": "u1", "plan_id": plan["plan_id"],
+        "recommendation_id": body["recommendation_id"], "user_id": U1, "plan_id": plan["plan_id"],
         "completed": True, "actual_minutes": plan["minutes"], "rpe": 7})
     assert lg.status_code == 200, lg.text
     rw = client.post("/api/reward/", json={
-        "recommendation_id": body["recommendation_id"], "user_id": "u1",
+        "recommendation_id": body["recommendation_id"], "user_id": U1,
         "completed": True, "rpe": 7, "pain_occurred": False})
     assert rw.status_code == 200, rw.text
     return body, rw.json()
@@ -92,7 +101,7 @@ def test_flow_updates_hybrid_model(env, monkeypatch):
         z, x = L.features_for(st, json.loads(rec.selected_plan_json), st["recent_plan_ids"])
         L.observe(shared, user, z, x, rw["reward"])
         got_s = linucb_store.load_shared(db)
-        got_u = linucb_store.load_user(db, "u1")
+        got_u = linucb_store.load_user(db, U1)
         np.testing.assert_allclose(got_s.A0, shared.A0)
         np.testing.assert_allclose(got_s.b0, shared.b0)
         np.testing.assert_allclose(got_u.B, user.B)
@@ -147,3 +156,69 @@ def test_exercise_guide_and_rate_limit(env, monkeypatch):
     r = client.post("/api/chatbot/exercise-guide", json=body)     # 같은 IP 세 번째
     assert r.status_code == 429 and "한 시간에 2번" in r.json()["detail"]
     assert len(fake.calls) == 2                                    # 막힌 호출은 API 까지 안 간다
+
+
+def test_heatmap_counts_today(env):
+    from datetime import date, timedelta
+    from app.services import heatmap as hm
+
+    client, _ = env
+    _session(client)
+    _session(client)
+    r = client.get(f"/api/stats/{U1}/heatmap?weeks=4")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    today = date.fromisoformat(body["end"])
+    assert body["start"] == hm.grid_start(today, 4).isoformat()
+    assert len(body["days"]) == 21 + today.weekday() + 1          # 지난 3주 + 이번 주 오늘까지
+    assert body["days"][-1]["count"] == 2 and body["days"][-1]["minutes"] > 0
+    assert body["active_days"] == 1
+    assert (body["current_streak"], body["longest_streak"]) == (1, 1)
+    assert client.get("/api/stats/nobody/heatmap").status_code == 403   # 남의 기록은 막는다
+
+
+def test_streaks_rule():
+    from datetime import date
+    from app.services.heatmap import streaks
+
+    d = date(2026, 11, 18)
+    days = [date(2026, 11, x) for x in (1, 2, 3, 4, 10, 16, 17)]
+    # 오늘(18일) 기록이 없어도 어제(17일)부터 거꾸로 센다
+    assert streaks(days, d) == {"current_streak": 2, "longest_streak": 4}
+    assert streaks([], d) == {"current_streak": 0, "longest_streak": 0}
+
+
+def test_login_from_another_device(env):
+    client, _ = env
+    _session(client)
+    other = TestClient(client.app)                      # 토큰 없는 새 기기
+    assert other.get(f"/api/stats/{U1}/heatmap").status_code == 401
+    assert other.post("/api/auth/login", json={"username": "tester", "password": "wrong-pass"}).status_code == 401
+    r = other.post("/api/auth/login", json={"username": " Tester ", "password": "pass1234"})   # 대소문자·공백 무시
+    assert r.status_code == 200 and r.json()["user_id"] == U1
+    other.headers.update({"Authorization": "Bearer " + r.json()["token"]})
+    h = other.get(f"/api/stats/{U1}/heatmap")
+    assert h.status_code == 200 and h.json()["days"][-1]["count"] == 1     # 앞 기기의 기록이 이어진다
+    assert other.get("/api/auth/me").json()["username"] == "tester"
+    other.post("/api/auth/logout")
+    assert other.get("/api/auth/me").status_code == 401
+    assert client.get("/api/auth/me").status_code == 200                      # 다른 기기의 로그인은 그대로
+
+
+def test_users_cannot_read_each_other(env):
+    client, _ = env
+    body, _ = _session(client)
+    b = TestClient(client.app)
+    r = b.post("/api/onboarding/", json={
+        "username": "second", "password": "pass5678", "age": 30, "sex": "male", "height_cm": 170, "weight_kg": 65,
+        "goal": "fitness", "experience_level": "beginner", "weekly_available_days": 3, "place_preference": "gym"})
+    assert r.status_code == 200
+    b.headers.update({"Authorization": "Bearer " + r.json()["token"]})
+    assert b.get(f"/api/user/{U1}").status_code == 403
+    assert b.get(f"/api/recommend/{body['recommendation_id']}").status_code == 403
+    profile = {"age": 30, "sex": "male", "height_cm": 170, "weight_kg": 65, "goal": "fitness",
+               "experience_level": "beginner", "weekly_available_days": 3, "place_preference": "gym"}
+    assert b.post("/api/onboarding/", json={**profile, "username": "tester", "password": "pass5678"}).status_code == 409
+    assert b.post("/api/onboarding/", json={"username": "x", "password": "short", "age": 30, "sex": "male",
+        "height_cm": 170, "weight_kg": 65, "goal": "fitness", "experience_level": "beginner",
+        "weekly_available_days": 3, "place_preference": "gym"}).status_code == 422

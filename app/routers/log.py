@@ -9,12 +9,14 @@ from app.schemas.request_response import LogRequest
 from app.services.progression_service import check_user_progression
 from app.services.plan_registry import ensure_plan_exists
 from app.core.list_field import dump_list_field, parse_list_field
+from app.services.auth import ensure_self, require_user
 
 router = APIRouter()
 
 
 @router.post("/")
-def save_log(request: LogRequest, db: Session = Depends(get_db)):
+def save_log(request: LogRequest, db: Session = Depends(get_db), auth_user: str = Depends(require_user)):
+    ensure_self(auth_user, request.user_id)
     recommendation = (
         db.query(Recommendation)
         .filter(Recommendation.recommendation_id == request.recommendation_id)
@@ -22,6 +24,7 @@ def save_log(request: LogRequest, db: Session = Depends(get_db)):
     )
     if not recommendation:
         raise HTTPException(status_code=404, detail="Recommendation not found")
+    ensure_self(auth_user, recommendation.user_id)
 
     # 대체 운동처럼 seed 에 없는 plan 이 추천될 수 있다. 그대로 넣으면
     # ExerciseLog.plan_id 외래키가 걸려 저장이 통째로 깨진다.

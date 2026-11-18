@@ -4,8 +4,8 @@ import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useUserStore } from "../src/store/userStore";
 import client from "../src/api/client";
-import { notify } from "../src/utils/dialog";
-import { Button, Card, Chip, colors, Row, Screen, Section, Segmented, Title } from "../src/ui";
+import { errorMessage, notify } from "../src/utils/dialog";
+import { Button, Card, Chip, colors, Field, Row, Screen, Section, Segmented, Title } from "../src/ui";
 
 const INJURY_OPTIONS = [
   { id: "knee", label: "무릎" },
@@ -20,13 +20,15 @@ const CURRENT_YEAR = new Date().getFullYear();
 
 export default function Onboarding() {
   const router = useRouter();
-  const { setUserId, setIsOnboarded } = useUserStore();
+  const { setSession } = useUserStore();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [picker, setPicker] = useState<null | "birth" | "height" | "weight">(null);
   const [timeOpen, setTimeOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
-    user_id: "user_" + Math.random().toString(36).slice(2, 7),
     birth_year: 1999,
     sex: "male",
     height_cm: 175,
@@ -44,9 +46,18 @@ export default function Onboarding() {
     set({ injuries: form.injuries.includes(id) ? form.injuries.filter((x) => x !== id) : [...form.injuries, id] });
 
   const submit = async () => {
+    const name = username.trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,20}$/.test(name)) return setAccountError("아이디는 영문 소문자, 숫자, 밑줄로 3~20자예요.");
+    if (password.length < 8) return setAccountError("비밀번호는 8자 이상이에요.");
+    setAccountError(null);
     setSaving(true);
     try {
-      const response = await client.post("/api/onboarding/", { ...form, age: CURRENT_YEAR - form.birth_year });
+      const response = await client.post("/api/onboarding/", {
+        ...form,
+        username: name,
+        password,
+        age: CURRENT_YEAR - form.birth_year,
+      });
       if (response.status === 200) {
         // 운동 알림은 기기 앱에서만 예약한다
         if (Platform.OS !== "web") {
@@ -59,13 +70,14 @@ export default function Onboarding() {
             console.log("Notification setup skipped or failed:", notifError);
           }
         }
-        setUserId(form.user_id);
-        setIsOnboarded(true);
+        setSession({ userId: response.data.user_id, username: response.data.username, token: response.data.token });
         router.replace("/");
       }
     } catch (error) {
       console.error(error);
-      notify("저장하지 못했어요", "잠시 뒤에 다시 시도해 주세요.");
+      const status = (error as any)?.response?.status;
+      if (status === 409 || status === 422) setAccountError(errorMessage(error, "아이디를 확인해 주세요."));
+      else notify("가입하지 못했어요", errorMessage(error, "잠시 뒤에 다시 시도해 주세요."));
     } finally {
       setSaving(false);
     }
@@ -89,6 +101,24 @@ export default function Onboarding() {
     <Screen footer={<Button label="시작하기" onPress={submit} loading={saving} />}>
       <Stack.Screen options={{ title: "기본 정보" }} />
       <Title sub="추천할 운동의 강도와 종류를 정하는 데 씁니다. 나중에 내 정보에서 바꿀 수 있어요.">나에 대해 알려 주세요</Title>
+
+      <Section label="계정">
+        <Field
+          label="아이디"
+          value={username}
+          onChange={(t) => setUsername(t)}
+          placeholder="영문 소문자, 숫자, 밑줄 3~20자"
+          error={accountError}
+        />
+        <Field
+          label="비밀번호"
+          value={password}
+          onChange={setPassword}
+          secure
+          placeholder="8자 이상"
+          hint="다른 기기에서도 이 아이디로 로그인하면 기록이 이어져요."
+        />
+      </Section>
 
       <Section label="성별">
         <Segmented

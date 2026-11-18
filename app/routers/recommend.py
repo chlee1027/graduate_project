@@ -15,12 +15,14 @@ from app.services.streak_service import get_current_streak
 from app.core.list_field import parse_list_field
 from app.core.timezone import now_kst
 from datetime import timedelta
+from app.services.auth import ensure_self, require_user
 
 router = APIRouter()
 
 
 @router.post("/", response_model=RecommendResponse)
-def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
+def recommend(request: RecommendRequest, db: Session = Depends(get_db), auth_user: str = Depends(require_user)):
+    ensure_self(auth_user, request.user_id)
     user = db.query(User).filter(User.user_id == request.user_id).first()
     if not user:
         raise HTTPException(
@@ -105,10 +107,11 @@ def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/{recommendation_id}")
-def get_recommendation(recommendation_id: str, db: Session = Depends(get_db)):
+def get_recommendation(recommendation_id: str, db: Session = Depends(get_db), auth_user: str = Depends(require_user)):
     recommendation = db.query(Recommendation).filter(Recommendation.recommendation_id == recommendation_id).first()
     if not recommendation:
         raise HTTPException(status_code=404, detail="Recommendation not found")
+    ensure_self(auth_user, recommendation.user_id)
     
     return {
         "recommendation_id": recommendation.recommendation_id,
