@@ -29,9 +29,9 @@
 ### 4. 추천 알고리즘 v3.0 (PT 코치 모드)
 
 *   **세부 근육 단위 분석**: 대분류 부위뿐 아니라 소분류 근육(햄스트링, 광배근 등)의 수행 이력을 추적합니다.
-*   **컨디션 반영**: 피로도와 숙련도에 따라 세트, 횟수, 휴식 시간, 목표 RPE를 그 자리에서 조정합니다.
+*   **컨디션 반영**: 추천 화면에서 오늘 피로도(0에서 5)와 운동할 수 있는 시간을 고르면, 피로도와 숙련도에 따라 세트, 횟수, 휴식 시간, 목표 RPE를 그 자리에서 조정하고 시간 안에 끝나는 운동만 후보로 남깁니다.
 *   **통증 처리 두 단계**: 직접 금기 부위는 후보에서 제외하고, 간접 영향권(예: 손목 통증일 때의 상체 중량 운동)은 감점으로 뒤로 밉니다.
-*   **가중치 밸런스**: 과거 보상 평균에 부위 우선순위 점수를 0.01 단위로 더해, 사용자 피드백(RPE, 완료 여부, 통증)이 추천에 반영되도록 했습니다.
+*   **hybrid LinUCB 추천**: 모든 사용자가 함께 배우는 모형과 사용자마다 따로 배우는 작은 모형으로 후보마다 보상(완료 여부, RPE, 통증)을 예측하고, 덜 해 본 조합에 탐색 가산점을, 최근 덜 한 부위에 균형 가산점을 더해 고릅니다. 처음 쓰는 사용자도 다른 사용자의 기록으로 고릅니다.
 
 ### 5. 크로스 플랫폼 지원 (Web & Mobile)
 
@@ -55,7 +55,7 @@
 
 *   **Framework**: FastAPI (Python 3.12)
 *   **Database**: PostgreSQL (Docker Compose)
-*   **추천 엔진**: ε-greedy 밴딧(`EPSILON = 0.2`). 사용자별·운동별 보상 평균에 손 규칙 점수(부위 우선순위, 피로도·시간 가산점)를 더해 고른다
+*   **추천 엔진**: hybrid LinUCB(Li et al., WWW 2010, `LINUCB_ALPHA = 1`) + 부위 균형 가중치(`BALANCE_WEIGHT = 0.25`), `app/services/linucb.py`. 예전 ε-greedy 밴딧은 `RECOMMENDER=eps_greedy` 로 되돌릴 수 있다
 *   **LLM 연동**: Google Gemini API (`gemini-3.5-flash`). 서버가 뜰 때 `list_models()` 로 사용 가능한 모델을 조회해 우선순위 목록의 위에서부터 고릅니다.
 
 ---
@@ -90,6 +90,8 @@ python -m scripts.migrate_user_list_fields          # 무엇이 바뀌는지 보
 python -m scripts.migrate_user_list_fields --apply  # 실제로 바꾼다
 ```
 
+추천 엔진의 모형 표 `linucb_shared`·`linucb_users` 는 서버가 뜰 때 `create_all` 이 없으면 만든다. 기존 표와 기록은 건드리지 않고, 모형은 빈 상태에서 시작해 보상이 들어올 때마다 쌓인다.
+
 ### 4. 프런트엔드
 
 ```bash
@@ -117,16 +119,17 @@ PostgreSQL 의 `timezone(zone, x)` 는 인자 타입에 따라 방향이 뒤집�
 | 방식 | 세션당 기대 보상 | regret |
 |---|---|---|
 | 무작위 | 0.977 | 0.174 |
-| 지금 앱 (ε-greedy, ε=0.2) | 0.964 | 0.185 |
+| 예전 앱 (ε-greedy, ε=0.2) | 0.964 | 0.185 |
 | LinUCB 공유 (α=1) | 1.014 | 0.133 |
 | LinUCB hybrid (α=1) | 1.039 | 0.108 |
+| hybrid + 부위 균형 (λ=0.25), 지금 앱 | 1.034 | 0.114 |
 | 오라클 (상한) | 1.144 | 0 |
 
-지금 방식은 이미 해 본 운동에 묶여 무작위보다 낮았고(10/10 seed), hybrid LinUCB 는 네 시나리오 모두에서 가장 높았다. 가정·설계·한계는 [docs/simulation_eval.md](docs/simulation_eval.md).
+예전 방식은 이미 해 본 운동에 묶여 무작위보다 낮았고(10/10 seed), hybrid LinUCB 는 네 시나리오 모두에서 가장 높았다. 앱에는 부위 균형 가중치를 더한 판을 넣었다. 운동 부위가 앱의 손 규칙만큼 고르게 퍼지고, 기대 보상은 hybrid 보다 0.005 낮다. 가정·설계·한계는 [docs/simulation_eval.md](docs/simulation_eval.md).
 
 ```bash
 python -m pytest tests
-python -m sim.run_experiments   # 16코어에서 약 8분
+python -m sim.run_experiments   # 16코어에서 약 12분
 python -m sim.plot_results
 ```
 

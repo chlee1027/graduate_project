@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, Boolean, Text, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Float, Boolean, Text, DateTime, ForeignKey, UniqueConstraint, LargeBinary
 from sqlalchemy.sql import func
 
 from app.db.database import Base
@@ -88,4 +88,31 @@ class BanditStat(Base):
     count = Column(Integer, default=0, nullable=False)
     total_reward = Column(Float, default=0.0, nullable=False)
     avg_reward = Column(Float, default=0.0, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class LinUCBShared(Base):
+    """hybrid LinUCB 의 공유 몫(app/services/linucb.py). 행은 id=1 하나뿐이다.
+
+    행렬은 float64 바이트로 저장한다. mat_a0(A0) 는 (105, 105), vec_b0(b0) 는 (105,).
+    열 이름에 대소문자만 다른 A·b 를 쓰면 SQLite 처럼 대소문자를 안 가리는 DB 에서 겹친다.
+    """
+    __tablename__ = "linucb_shared"
+
+    id = Column(Integer, primary_key=True)
+    mat_a0 = Column(LargeBinary, nullable=False)
+    vec_b0 = Column(LargeBinary, nullable=False)
+    n_updates = Column(Integer, default=0, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class LinUCBUser(Base):
+    """hybrid LinUCB 의 사용자별 몫. mat_a(A) 는 (11, 11), mat_b(B) 는 (11, 105), vec_b(b) 는 (11,)."""
+    __tablename__ = "linucb_users"
+
+    user_id = Column(String, ForeignKey("users.user_id"), primary_key=True)
+    mat_a = Column(LargeBinary, nullable=False)
+    mat_b = Column(LargeBinary, nullable=False)
+    vec_b = Column(LargeBinary, nullable=False)
+    n_updates = Column(Integer, default=0, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

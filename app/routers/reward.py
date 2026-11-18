@@ -8,6 +8,7 @@ from app.db.models import Recommendation, ExerciseLog
 from app.schemas.request_response import RewardRequest, RewardResponse
 from app.services.reward_service import calculate_reward
 from app.services.recommender_bandit_db import update_bandit_db
+from app.services.linucb_store import update_hybrid_db
 from app.services.streak_service import get_current_streak
 
 router = APIRouter()
@@ -50,6 +51,10 @@ def reward(request: RewardRequest, db: Session = Depends(get_db)):
         streak=current_streak,
     )
 
+    # hybrid LinUCB 갱신은 커밋하지 않고, 아래 update_bandit_db 의 커밋에 함께 실린다.
+    # 예전 방식의 통계(bandit_stats)도 계속 쌓아 RECOMMENDER 를 되돌려도 이어서 쓸 수 있게 한다.
+    state = json.loads(recommendation.state_json or "{}")
+    linucb_update = update_hybrid_db(db, request.user_id, state, selected_plan, reward_value)
     updated_stat = update_bandit_db(db, request.user_id, plan_id, reward_value)
 
     return RewardResponse(
@@ -61,5 +66,6 @@ def reward(request: RewardRequest, db: Session = Depends(get_db)):
             "user_id": request.user_id,
             "plan_id": plan_id,
             "bandit_stat": updated_stat,
+            "linucb": linucb_update,
         },
     )

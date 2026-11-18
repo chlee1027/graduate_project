@@ -28,12 +28,13 @@ class RecommendRequest(BaseModel):
     location: Literal["home", "gym"]
     available_minutes: int = Field(..., ge=5, le=120)
     fatigue: int = Field(..., ge=0, le=5)
-    sleep_hours: float = Field(..., ge=0, le=24)
+    sleep_hours: float = Field(7.0, ge=0, le=24)
     pain_parts: List[str] = []
     equipment_available: List[str] = []
-    recent_adherence_7d: float = Field(..., ge=0.0, le=1.0)
+    # 비워 두면 서버가 최근 7일 기록으로 계산한다
+    recent_adherence_7d: Optional[float] = Field(None, ge=0.0, le=1.0)
     streak: Optional[int] = Field(None, ge=0)
-    avg_rpe_last_7d: float = Field(..., ge=0.0, le=10.0)
+    avg_rpe_last_7d: Optional[float] = Field(None, ge=0.0, le=10.0)
     want_stretching: bool = False
 
 

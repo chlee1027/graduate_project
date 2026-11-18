@@ -2,6 +2,11 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    # 추천 엔진: "hybrid" (hybrid LinUCB, docs/simulation_eval.md) 또는 "eps_greedy" (예전 방식)
+    RECOMMENDER: str = "hybrid"
+    LINUCB_ALPHA: float = 1.0
+    LINUCB_LAMBDA: float = 1.0
+    BALANCE_WEIGHT: float = 0.25  # 코치 점수(최근 덜 한 부위) 가중치. 조율 근거는 docs/simulation_eval.md 6.6절
     EPSILON: float = 0.2
 
     COMPLETION_REWARD: float = 1.0

@@ -6,6 +6,24 @@ import client from "../src/api/client";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
+// 오늘 컨디션 입력. 추천 엔진은 피로도와 가용 시간을 보고 고른다(docs/simulation_eval.md).
+const FATIGUE_LEVELS = [
+  { value: 0, label: "0", hint: "개운함" },
+  { value: 1, label: "1", hint: "가뿐함" },
+  { value: 2, label: "2", hint: "보통" },
+  { value: 3, label: "3", hint: "조금 지침" },
+  { value: 4, label: "4", hint: "많이 지침" },
+  { value: 5, label: "5", hint: "녹초" },
+];
+const MINUTE_OPTIONS = [10, 15, 20, 30, 45, 60];
+
+type Conditions = {
+  location: "gym" | "home";
+  stretching: boolean;
+  fatigue: number;
+  minutes: number;
+};
+
 export default function Recommend() {
   const router = useRouter();
   const { userId } = useUserStore();
@@ -14,26 +32,27 @@ export default function Recommend() {
   const [location, setLocation] = useState<"gym" | "home">("gym");
   const [wantStretching, setWantStretching] = useState(false);
   const [showReason, setShowReason] = useState(false);
+  const [fatigue, setFatigue] = useState(2);
+  const [minutes, setMinutes] = useState(30);
 
   // AI Guide States
   const [aiLoading, setAiLoading] = useState(false);
   const [guideModalVisible, setGuideModalVisible] = useState(false);
   const [aiGuide, setAiGuide] = useState<any>(null);
 
-  const fetchRecommendation = async (currentLocation: "gym" | "home", stretching: boolean = false) => {
+  // 바뀐 값만 넘기면 나머지는 지금 화면 값을 쓴다(상태 갱신 전에 불러도 새 값이 들어가도록).
+  const fetchRecommendation = async (changes: Partial<Conditions> = {}) => {
+    const c: Conditions = { location, stretching: wantStretching, fatigue, minutes, ...changes };
     setLoading(true);
     setShowReason(false); // Reset reason visibility on new fetch
     try {
+      // 최근 순응도·평균 RPE·스트릭은 서버가 기록으로 계산한다.
       const response = await client.post("/api/recommend/", {
         user_id: userId,
-        location: currentLocation,
-        available_minutes: 60,
-        fatigue: 2,
-        sleep_hours: 7.0,
-        recent_adherence_7d: 0.8,
-        streak: null, // Let backend calculate
-        avg_rpe_last_7d: 5.0,
-        want_stretching: stretching,
+        location: c.location,
+        available_minutes: c.minutes,
+        fatigue: c.fatigue,
+        want_stretching: c.stretching,
       });
       setRecommendation(response.data);
     } catch (error) {
@@ -65,7 +84,7 @@ export default function Recommend() {
 
   useEffect(() => {
     if (userId) {
-      fetchRecommendation(location, wantStretching);
+      fetchRecommendation();
     } else {
       setLoading(false);
       Alert.alert("오류", "사용자 정보가 없습니다. 온보딩을 먼저 진행해주세요.");
@@ -75,13 +94,13 @@ export default function Recommend() {
 
   const handleLocationChange = (newLoc: "gym" | "home") => {
     setLocation(newLoc);
-    fetchRecommendation(newLoc, wantStretching);
+    fetchRecommendation({ location: newLoc });
   };
 
   const toggleStretching = () => {
     const nextValue = !wantStretching;
     setWantStretching(nextValue);
-    fetchRecommendation(location, nextValue);
+    fetchRecommendation({ stretching: nextValue });
   };
 
   if (loading) {
@@ -168,6 +187,47 @@ export default function Recommend() {
           >
             <Text className={`font-black text-xs ${location === "home" ? "text-blue-600" : "text-gray-400"}`}>🏠 홈트</Text>
           </TouchableOpacity>
+        </View>
+
+        <View className="bg-gray-50 p-5 rounded-3xl border border-gray-100 mb-8">
+          <Text className="text-gray-900 font-black text-sm mb-1">오늘 컨디션</Text>
+          <Text className="text-gray-400 text-[10px] font-bold mb-4">바꾸면 추천을 다시 받아요</Text>
+
+          <Text className="text-gray-500 text-[11px] font-bold mb-2">
+            피로도 {fatigue} · {FATIGUE_LEVELS[fatigue].hint}
+          </Text>
+          <View className="flex-row mb-4">
+            {FATIGUE_LEVELS.map((f) => (
+              <TouchableOpacity
+                key={f.value}
+                accessibilityLabel={`피로도 ${f.value} ${f.hint}`}
+                onPress={() => {
+                  setFatigue(f.value);
+                  fetchRecommendation({ fatigue: f.value });
+                }}
+                className={`flex-1 py-2 mx-0.5 rounded-xl items-center ${fatigue === f.value ? "bg-blue-600" : "bg-white border border-gray-200"}`}
+              >
+                <Text className={`font-black text-xs ${fatigue === f.value ? "text-white" : "text-gray-500"}`}>{f.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text className="text-gray-500 text-[11px] font-bold mb-2">운동할 수 있는 시간 {minutes}분</Text>
+          <View className="flex-row">
+            {MINUTE_OPTIONS.map((m) => (
+              <TouchableOpacity
+                key={m}
+                accessibilityLabel={`${m}분`}
+                onPress={() => {
+                  setMinutes(m);
+                  fetchRecommendation({ minutes: m });
+                }}
+                className={`flex-1 py-2 mx-0.5 rounded-xl items-center ${minutes === m ? "bg-blue-600" : "bg-white border border-gray-200"}`}
+              >
+                <Text className={`font-black text-xs ${minutes === m ? "text-white" : "text-gray-500"}`}>{m}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {recommendation && theme ? (
@@ -288,7 +348,7 @@ export default function Recommend() {
         
         <TouchableOpacity
           className="p-4 items-center bg-gray-50 rounded-2xl mx-10 border border-gray-100"
-          onPress={() => fetchRecommendation(location, wantStretching)}
+          onPress={() => fetchRecommendation()}
         >
           <Text className="text-blue-600 font-bold text-[10px]">다른 추천 받기 ↻</Text>
         </TouchableOpacity>

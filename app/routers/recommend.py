@@ -9,6 +9,8 @@ from app.db.models import User, Recommendation, ExerciseLog
 from app.schemas.request_response import RecommendRequest, RecommendResponse
 from app.services.candidate_generator import generate_candidates
 from app.services.recommender_bandit_db import select_action_db
+from app.services.linucb_store import recent_activity, recent_plan_ids, select_hybrid_db
+from app.core.config import settings
 from app.services.streak_service import get_current_streak
 from app.core.list_field import parse_list_field
 from app.core.timezone import now_kst
@@ -61,9 +63,19 @@ def recommend(request: RecommendRequest, db: Session = Depends(get_db)):
     state["goal"] = user.goal
     state["streak"] = current_streak
     state["pain_parts"] = all_pain_parts # 프런트에서 보낸 것 대신 서버에서 계산한 값 사용
+    # 프런트가 비워 보내면 최근 7일 기록으로 채운다
+    activity = recent_activity(db, request.user_id, user.weekly_available_days)
+    for key, value in activity.items():
+        if state.get(key) is None:
+            state[key] = value
+    # 보상 때 같은 특징을 다시 만들 수 있도록 state 에 함께 저장한다
+    state["recent_plan_ids"] = recent_plan_ids(db, request.user_id)
 
     candidates = generate_candidates(state, db)
-    result = select_action_db(db, request.user_id, state, candidates)
+    if settings.RECOMMENDER == "hybrid":
+        result = select_hybrid_db(db, request.user_id, state, candidates)
+    else:
+        result = select_action_db(db, request.user_id, state, candidates)
     selected_plan = result["selected_plan"]
     
     # PT 코치 사유를 최우선으로, 없으면 알고리즘 사유(exploration/exploitation) 사용
